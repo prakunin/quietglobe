@@ -2,7 +2,7 @@
 
 **Убирает системный индикатор источника ввода macOS — окно ABC/Russian — для любой раскладки. Переключение по клавише 🌐 мгновенное: без окна, без HUD, без задержки.**
 
-> **Форк [Nishikinodzuki/quietglobe](https://github.com/Nishikinodzuki/quietglobe)** с функцией **Fn+Esc — перенабрать последнее слово (или несколько) в другой раскладке**, как «исправить последнее слово» в Punto Switcher. Подробнее — [ниже](#fnesc-перенабор-в-другой-раскладке). Готовых сборок у форка нет — [соберите из исходников](#сборка-из-исходников).
+> **Форк [Nishikinodzuki/quietglobe](https://github.com/Nishikinodzuki/quietglobe)** с функцией **Fn+Esc — перенабрать последнее слово (или несколько) в другой раскладке**, как «исправить последнее слово» в Punto Switcher. Подробнее — [ниже](#fnesc-перенабор-в-другой-раскладке). Готовых бинарников нет: [установщик одной командой](#установка) собирает из исходников.
 
 [English](README.md) · **Русский** · [Установка](#установка) · [Обратная связь](#обратная-связь) · [FAQ](#faq)
 
@@ -42,16 +42,16 @@
 ### Установщик одной командой (рекомендуется)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Nishikinodzuki/quietglobe/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/prakunin/quietglobe/main/install.sh | bash
 ```
 
-Он скачивает Universal 2 сборку, проверяет SHA-256, ставит в `/Applications` (или `~/Applications`, если нужно), снимает quarantine и открывает QuietGlobe.
+Он скачивает исходники этого форка, собирает их локально (нужны Xcode Command Line Tools: `xcode-select --install`), ставит в `/Applications` (или `~/Applications`, если нужно) и открывает QuietGlobe. Локальная сборка — значит, не нужно доверять чужому неподписанному бинарнику и снимать quarantine. Для обновления запустите ту же команду ещё раз.
 
 После установки откройте **QuietGlobe** из `/Applications`, если он не открылся сам — приложение работает в менюбаре (без иконки в Dock).
 
 ### Вручную
 
-Скачайте последний `QuietGlobe-*.zip` со страницы [GitHub Releases](https://github.com/Nishikinodzuki/quietglobe/releases/latest), распакуйте и перенесите `QuietGlobe.app` в `/Applications`.
+Соберите по разделу [Сборка из исходников](#сборка-из-исходников) и перенесите `QuietGlobe.app` в `/Applications`. (Релизы [оригинала](https://github.com/Nishikinodzuki/quietglobe/releases) Fn+Esc **не** содержат.)
 
 ## Первый запуск
 

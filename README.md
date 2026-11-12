@@ -2,7 +2,7 @@
 
 **Disable the system-wide macOS input source indicator — the ABC/Russian popup — for any keyboard layout. Switch input sources instantly with the 🌐 Globe key: no popup, no HUD, no delay.**
 
-> **Fork of [Nishikinodzuki/quietglobe](https://github.com/Nishikinodzuki/quietglobe)** adding **Fn+Esc — retype the last word(s) in the other layout** (like Punto Switcher's “convert last word”). See [Fn+Esc](#fnesc-retype-in-the-other-layout). This fork has no prebuilt release — [build from source](#build-from-source).
+> **Fork of [Nishikinodzuki/quietglobe](https://github.com/Nishikinodzuki/quietglobe)** adding **Fn+Esc — retype the last word(s) in the other layout** (like Punto Switcher's “convert last word”). See [Fn+Esc](#fnesc-retype-in-the-other-layout). No prebuilt binaries: the [one-line installer](#install) builds it from source.
 
 **English** · [Русский](README.ru.md) · [Install](#install) · [Feedback](#feedback) · [FAQ](#faq)
 
@@ -42,16 +42,16 @@ If you searched for **“disable ABC/Russian popup macOS”**, **“macOS input 
 ### One-line installer (recommended)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Nishikinodzuki/quietglobe/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/prakunin/quietglobe/main/install.sh | bash
 ```
 
-It downloads the Universal 2 build, verifies SHA-256, installs to `/Applications` (or `~/Applications` if needed), removes quarantine, and opens QuietGlobe.
+It downloads the source of this fork, builds it locally (requires Xcode Command Line Tools: `xcode-select --install`), installs to `/Applications` (or `~/Applications` if needed), and opens QuietGlobe. Building locally means there is no unsigned binary to trust and no quarantine to remove. Run the same command again to update.
 
 After installation, open **QuietGlobe** from `/Applications` if it is not already open — it runs in the menu bar (no Dock icon).
 
 ### Manual
 
-Download the latest `QuietGlobe-*.zip` from [GitHub Releases](https://github.com/Nishikinodzuki/quietglobe/releases/latest), unzip it, and move `QuietGlobe.app` to `/Applications`.
+See [Build from source](#build-from-source), then move `QuietGlobe.app` to `/Applications`. (The upstream [releases](https://github.com/Nishikinodzuki/quietglobe/releases) do **not** include Fn+Esc.)
 
 ## First launch
 

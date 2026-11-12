@@ -1,20 +1,27 @@
 #!/usr/bin/env bash
+# Installs QuietGlobe (prakunin fork, with Fn+Esc) by building it from source.
+# Requires Xcode Command Line Tools (swiftc). Env: REF (branch/tag, default main),
+# INSTALL_DIR (default /Applications or ~/Applications), NO_OPEN=1 (do not launch).
 set -euo pipefail
 
-VERSION="1.0.0"
-SHA256="0529ccf32617804cdd245a7a61615f8e5a4236a7712d84ea9c377b2cf583e180"
-URL="https://github.com/Nishikinodzuki/quietglobe/releases/download/v${VERSION}/QuietGlobe-${VERSION}.zip"
+REPO="prakunin/quietglobe"
+REF="${REF:-main}"
+
+if ! xcode-select -p >/dev/null 2>&1 || ! command -v swiftc >/dev/null 2>&1; then
+  echo "Xcode Command Line Tools are required. Run: xcode-select --install" >&2
+  exit 1
+fi
 
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 
-echo "Downloading QuietGlobe ${VERSION}..."
-curl -fL --retry 3 -o "$tmp/QuietGlobe.zip" "$URL"
+echo "Downloading ${REPO}@${REF}..."
+curl -fsSL --retry 3 "https://codeload.github.com/${REPO}/tar.gz/${REF}" | tar -xz -C "$tmp"
+src="$(find "$tmp" -mindepth 1 -maxdepth 1 -type d | head -1)"
 
-echo "${SHA256}  $tmp/QuietGlobe.zip" | shasum -a 256 -c -
-
-ditto -x -k "$tmp/QuietGlobe.zip" "$tmp/unpacked"
-app="$tmp/unpacked/QuietGlobe.app"
+echo "Building..."
+(cd "$src" && bash scripts/build.sh 2>&1 | grep -v "libswiftCompatibilityPacks" | tail -1)
+app="$src/QuietGlobe.app"
 test -d "$app"
 
 if [ -n "${INSTALL_DIR:-}" ]; then
@@ -29,20 +36,21 @@ fi
 
 if [ -z "${INSTALL_DIR:-}" ]; then
   osascript -e 'tell application "QuietGlobe" to quit' >/dev/null 2>&1 || true
+  pkill -x QuietGlobe 2>/dev/null || true
+  sleep 1
 fi
 
 rm -rf "$dest/QuietGlobe.app"
 ditto "$app" "$dest/QuietGlobe.app"
-xattr -dr com.apple.quarantine "$dest/QuietGlobe.app" 2>/dev/null || true
 
 echo "Installed: $dest/QuietGlobe.app"
 echo
 echo "Next:"
 echo "1. Grant Accessibility in System Settings → Privacy & Security → Accessibility."
+echo "   After a reinstall/update, remove the old QuietGlobe entry (−) and enable it again:"
+echo "   the app is ad-hoc signed, so macOS treats every build as a new app."
 echo "2. Set the Globe key to \"Change Input Source\" in System Settings → Keyboard."
-echo "3. Press 🌐."
-echo
-echo "If macOS blocks the app: System Settings → Privacy & Security → Open Anyway."
+echo "3. Press 🌐. Type a word in the wrong layout and press Fn+Esc."
 
 if [ -z "${NO_OPEN:-}" ]; then
   open "$dest/QuietGlobe.app"
