@@ -86,6 +86,30 @@ jobs:
             --notes-file notes.md \
             QuietGlobe.zip QuietGlobe.zip.sha256 appcast.xml
 
+      - name: Bump Homebrew cask
+        env:
+          TAP_DEPLOY_KEY: ${{ secrets.TAP_DEPLOY_KEY }}
+          VERSION: ${{ steps.ver.outputs.version }}
+        run: |
+          set -euo pipefail
+          KEY="$RUNNER_TEMP/tap_key"
+          printf '%s\n' "$TAP_DEPLOY_KEY" > "$KEY"
+          chmod 600 "$KEY"
+          export GIT_SSH_COMMAND="ssh -i $KEY -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new"
+          git clone -q git@github.com:prakunin/homebrew-tap.git "$RUNNER_TEMP/tap"
+          SHA="$(cut -d' ' -f1 QuietGlobe.zip.sha256)"
+          CASK="$RUNNER_TEMP/tap/Casks/quietglobe.rb"
+          sed -i '' -E "s/^  version \".*\"/  version \"$VERSION\"/; s/^  sha256 \".*\"/  sha256 \"$SHA\"/" "$CASK"
+          cd "$RUNNER_TEMP/tap"
+          if git diff --quiet; then
+            echo "cask already at $VERSION"
+          else
+            git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+              commit -qam "quietglobe $VERSION"
+            git push -q origin HEAD:main
+          fi
+          rm -f "$KEY"
+
       - name: Remove temporary keychain
         if: always()
         run: |

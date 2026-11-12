@@ -49,6 +49,16 @@ curl -fsSL https://raw.githubusercontent.com/prakunin/quietglobe/main/install.sh
 
 После установки откройте **QuietGlobe** из `/Applications`, если он не открылся сам — приложение работает в менюбаре (без иконки в Dock).
 
+### Homebrew
+
+```bash
+brew tap prakunin/tap
+brew trust prakunin/tap   # Homebrew 7+: сторонним tap нужно явное доверие
+brew install --cask quietglobe
+```
+
+Cask снимает карантин скачивания с `/Applications/QuietGlobe.app` (приложение не нотаризовано). Он помечен `auto_updates`: QuietGlobe обновляется сам, `brew upgrade --greedy` тоже работает.
+
 ### Вручную
 
 Скачайте `QuietGlobe.zip` со страницы [Releases](https://github.com/prakunin/quietglobe/releases) или соберите по разделу [Сборка из исходников](#сборка-из-исходников) и перенесите `QuietGlobe.app` в `/Applications`. (Релизы [оригинала](https://github.com/Nishikinodzuki/quietglobe/releases) Fn+Esc **не** содержат.)

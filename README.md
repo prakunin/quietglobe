@@ -49,6 +49,16 @@ It downloads the latest prebuilt release, verifies its SHA-256 checksum, install
 
 After installation, open **QuietGlobe** from `/Applications` if it is not already open — it runs in the menu bar (no Dock icon).
 
+### Homebrew
+
+```bash
+brew tap prakunin/tap
+brew trust prakunin/tap   # Homebrew 7+: third-party taps must be trusted
+brew install --cask quietglobe
+```
+
+The cask removes the download quarantine from `/Applications/QuietGlobe.app` (the app is not notarized). It is marked `auto_updates`: QuietGlobe updates itself, `brew upgrade --greedy` also works.
+
 ### Manual
 
 Download `QuietGlobe.zip` from the [Releases](https://github.com/prakunin/quietglobe/releases) page, or [build from source](#build-from-source), then move `QuietGlobe.app` to `/Applications`. (The upstream [releases](https://github.com/Nishikinodzuki/quietglobe/releases) do **not** include Fn+Esc.)

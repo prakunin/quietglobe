@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Homebrew cask in the `prakunin/tap` tap, bumped automatically by the release workflow.
 - "Check for Updates Automatically" menu toggle (Sparkle's automatic update check).
 
 ### Changed
