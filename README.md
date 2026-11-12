@@ -2,6 +2,8 @@
 
 **Disable the system-wide macOS input source indicator — the ABC/Russian popup — for any keyboard layout. Switch input sources instantly with the 🌐 Globe key: no popup, no HUD, no delay.**
 
+> **Fork of [Nishikinodzuki/quietglobe](https://github.com/Nishikinodzuki/quietglobe)** adding **Fn+Esc — retype the last word(s) in the other layout** (like Punto Switcher's “convert last word”). See [Fn+Esc](#fnesc-retype-in-the-other-layout). This fork has no prebuilt release — [build from source](#build-from-source).
+
 **English** · [Русский](README.ru.md) · [Install](#install) · [Feedback](#feedback) · [FAQ](#faq)
 
 [![macOS 13+](https://img.shields.io/badge/macOS-13%2B-blue?style=flat-square)](https://www.apple.com/macos/)
@@ -68,7 +70,21 @@ Download the latest `QuietGlobe-*.zip` from [GitHub Releases](https://github.com
   - **Enabled** — toggle Globe key interception.
   - **Launch at Login** — start QuietGlobe when you log in.
   - **Accessibility Settings…** — open the exact permission pane.
+  - **Fn+Esc: retype last word** — toggle the retype hotkey (on by default).
   - **Quit QuietGlobe**.
+
+The layout switches when you **release** 🌐, and only if no other key was pressed while it was held — so 🌐 still works as a modifier (Fn+Esc and friends).
+
+## Fn+Esc: retype in the other layout
+
+Typed `ghbdtn` while in the Latin layout? Press **Fn+Esc** → it becomes `привет` and the layout switches.
+
+- **Fn+Esc** — deletes the last word and retypes the same keys in the other layout. Trailing spaces are kept.
+- **Series:** keep holding **Fn** and press **Esc** again — the previous word is added (2 words, then 3, …). The layout switches only on the first Esc of the series. Releasing Fn ends the series.
+- Press Fn+Esc again after releasing Fn to convert the last word back.
+- QuietGlobe remembers **key codes, not characters**, so Shift/Option combinations (e.g. Polish ą, ę) are reproduced in the target layout.
+- The remembered line resets on Return, Tab, arrows, Home/End/PgUp/PgDn, Cmd/Ctrl shortcuts, mouse clicks and app switches. Nothing is recorded while macOS secure input (password fields) is active.
+- Retyping works by synthetic Backspace + key presses, so it works in Terminal too. Not supported yet: Caps Lock (retyped in lower case), dead keys / IMEs, very long lines (history is capped at 256 keys).
 
 ## Supported macOS
 
@@ -130,7 +146,7 @@ QuietGlobe uses public macOS APIs: `CoreGraphics` event taps and the Carbon Text
 
 - No network requests.
 - No analytics or telemetry.
-- No keystroke content is stored or transmitted.
+- No keystroke content is stored or transmitted. For Fn+Esc the key codes of the current line are kept in memory only (never logged, never written to disk), and are dropped on Return, clicks, app switches and in password fields.
 - The source is open for review.
 
 ## Build from source
@@ -138,8 +154,9 @@ QuietGlobe uses public macOS APIs: `CoreGraphics` event taps and the Carbon Text
 Requirements: macOS 13+, Xcode Command Line Tools.
 
 ```bash
-git clone https://github.com/Nishikinodzuki/quietglobe.git
+git clone https://github.com/prakunin/quietglobe.git
 cd quietglobe
+./scripts/test.sh
 ./scripts/build.sh
 open QuietGlobe.app
 ```
