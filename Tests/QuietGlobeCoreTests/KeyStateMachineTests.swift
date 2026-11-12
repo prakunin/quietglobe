@@ -166,7 +166,7 @@ private extension KeyStateMachine {
         m.fnDown()
         _ = m.fnEsc()
         let second = m.fnEsc()
-        #expect(second == .consumed)  // consumed, nothing to convert
+        #expect(second == KeyStateMachine.Output(consume: true, action: .nothingToRetype))  // consumed + beep
     }
 
     @Test func fnReleaseEndsTheSeries() {
