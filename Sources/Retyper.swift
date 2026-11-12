@@ -1,3 +1,4 @@
+import Carbon
 import CoreGraphics
 import Foundation
 
@@ -13,17 +14,17 @@ import Foundation
 /// with `eventMarker` and the tap lets marked events through untouched.
 ///
 /// All timing-sensitive work happens on a private serial queue; TIS calls are
-/// hopped to the main thread, which the Text Input Sources API requires.
+/// hopped to the main thread, which the Text Input Sources API requires. The
+/// layout switch is confirmed by the system's input-source-changed notification
+/// (delivered on the main thread), never by polling.
 final class Retyper {
     /// Value written to `.eventSourceUserData` of every synthetic event ("QGLB").
     static let eventMarker: Int64 = 0x51474C42
 
     /// Pause between posted events, microseconds.
     static let postGap: useconds_t = 1_500
-    /// How often to check that the layout switch has happened, microseconds.
-    static let pollInterval: useconds_t = 5_000
-    /// Give up waiting for the layout switch after this long, seconds.
-    static let pollTimeout: TimeInterval = 0.3
+    /// Give up waiting for the layout-change notification after this long, seconds.
+    static let switchTimeout: TimeInterval = 0.3
     /// Extra wait after the switch is reported, so the first letters use the new layout.
     static let settleDelay: useconds_t = 40_000
 
@@ -66,8 +67,7 @@ final class Retyper {
         }
 
         if let targetID {
-            _ = onMain { switcher.switchToAlternativeLayoutReportingTarget() }
-            if waitForLayout(targetID) {
+            if switchAndWait(for: targetID) {
                 usleep(Self.settleDelay)
             } else {
                 log("layout switch not confirmed within timeout, typing anyway")
@@ -80,14 +80,27 @@ final class Retyper {
         log("retype finished")
     }
 
-    /// Polls the current layout id until it equals `id` or the timeout passes.
-    private func waitForLayout(_ id: String) -> Bool {
-        let deadline = Date().addingTimeInterval(Self.pollTimeout)
-        while Date() < deadline {
-            if onMain({ switcher.currentInputSourceID() }) == id { return true }
-            usleep(Self.pollInterval)
+    /// Switches to the alternative layout and waits until the current layout id equals `targetID`.
+    ///
+    /// Race-free: the observer is registered BEFORE switching, and the current id is
+    /// checked once after switching in case the notification was already delivered.
+    /// Must not run on the main thread (it blocks on a semaphore while main delivers
+    /// the notification). Returns false on timeout.
+    private func switchAndWait(for targetID: String) -> Bool {
+        let semaphore = DispatchSemaphore(value: 0)
+        let name = Notification.Name(kTISNotifySelectedKeyboardInputSourceChanged as String)
+        let center = DistributedNotificationCenter.default()
+        let observer = center.addObserver(forName: name, object: nil, queue: .main) { [switcher] _ in
+            if switcher.currentInputSourceID() == targetID { semaphore.signal() }
         }
-        return false
+        defer { center.removeObserver(observer) }
+
+        let alreadySwitched: Bool = onMain {
+            _ = switcher.switchToAlternativeLayoutReportingTarget()
+            return switcher.currentInputSourceID() == targetID
+        }
+        if alreadySwitched { return true }
+        return semaphore.wait(timeout: .now() + Self.switchTimeout) == .success
     }
 
     /// Posts a marked key-down + key-up with exactly the given modifier flags.

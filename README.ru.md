@@ -163,9 +163,8 @@ open QuietGlobe.app
 
 ## Обратная связь
 
-- **Баги и конкретные фичреквесты:** [GitHub Issues](https://github.com/Nishikinodzuki/quietglobe/issues)
-- **Идеи и предложения:** [GitHub Discussions → Ideas](https://github.com/Nishikinodzuki/quietglobe/discussions/categories/ideas)
-- **Вопросы:** [GitHub Discussions → Q&A](https://github.com/Nishikinodzuki/quietglobe/discussions/categories/q-a)
+- **Баги и конкретные фичреквесты:** [GitHub Issues](https://github.com/prakunin/quietglobe/issues)
+- **Идеи и вопросы:** тоже через [GitHub Issues](https://github.com/prakunin/quietglobe/issues).
 - **Уязвимости:** приватно через [SECURITY.md](SECURITY.md).
 
 ## Участие
@@ -174,4 +173,4 @@ Pull requests приветствуются. См. [CONTRIBUTING.md](CONTRIBUTING
 
 ## Лицензия
 
-MIT © Nishikinodzuki. См. [LICENSE](LICENSE).
+MIT © Nishikinodzuki, Vasili Prakunin. См. [LICENSE](LICENSE).

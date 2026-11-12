@@ -189,11 +189,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func showAbout() {
         let alert = NSAlert()
         alert.messageText = "QuietGlobe"
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
         alert.informativeText = """
         Instant, HUD-free input source switching for macOS.
-        Version 1.0.0
+        Version \(version)
 
-        https://github.com/Nishikinodzuki/quietglobe
+        https://github.com/prakunin/quietglobe
+        Fork of github.com/Nishikinodzuki/quietglobe
         """
         alert.addButton(withTitle: "OK")
         alert.runModal()

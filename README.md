@@ -163,9 +163,8 @@ open QuietGlobe.app
 
 ## Feedback
 
-- **Bugs and concrete feature requests:** [GitHub Issues](https://github.com/Nishikinodzuki/quietglobe/issues)
-- **Ideas and suggestions:** [GitHub Discussions → Ideas](https://github.com/Nishikinodzuki/quietglobe/discussions/categories/ideas)
-- **Questions:** [GitHub Discussions → Q&A](https://github.com/Nishikinodzuki/quietglobe/discussions/categories/q-a)
+- **Bugs and concrete feature requests:** [GitHub Issues](https://github.com/prakunin/quietglobe/issues)
+- **Ideas and questions:** also via [GitHub Issues](https://github.com/prakunin/quietglobe/issues).
 - **Security issues:** report privately via [SECURITY.md](SECURITY.md).
 
 ## Contributing
@@ -174,4 +173,4 @@ Pull requests are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md). If QuietGlobe
 
 ## License
 
-MIT © Nishikinodzuki. See [LICENSE](LICENSE).
+MIT © Nishikinodzuki, Vasili Prakunin. See [LICENSE](LICENSE).

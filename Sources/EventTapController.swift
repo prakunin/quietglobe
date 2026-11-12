@@ -11,6 +11,7 @@ import Foundation
 ///
 /// Globe is a tap-or-modifier key: a clean press-and-release switches the
 /// layout (on key-up); pressing another key while Globe is held does not.
+/// "Held" is tracked via the Fn modifier flag (`fnHeld`).
 /// Fn+Esc retypes the last typed word in the other layout (`Retyper`); the tap
 /// feeds a `WordBuffer` with the keystrokes for that. All events except Globe
 /// and the Fn+Esc pair are passed through unchanged.
@@ -29,9 +30,7 @@ final class EventTapController {
     private var eventTap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
 
-    // One physical press can emit repeated key-down events. These flags make
-    // sure a press produces exactly one layout switch.
-    private var globeIsDown = false
+    /// Another key was pressed while Fn/Globe was held, so releasing Globe must not switch the layout.
     private var globeUsedAsModifier = false
     /// Fn is held according to the modifier flags. On built-in keyboards (macOS 27)
     /// holding Fn produces only flagsChanged (keycode 63) and no keycode-179 key-down
@@ -39,7 +38,6 @@ final class EventTapController {
     private var fnHeld = false
     /// Words already converted in the current Fn-held series (0 = no series).
     private var seriesWords = 0
-    private var lastGlobeDownTime = Date.distantPast
     /// The Esc key-down of Fn+Esc was consumed, so its key-up must be too.
     private var swallowEscapeUp = false
 
@@ -109,7 +107,6 @@ final class EventTapController {
         eventTap = nil
         runLoopSource = nil
         buffer.reset()
-        globeIsDown = false
         globeUsedAsModifier = false
         fnHeld = false
         seriesWords = 0
@@ -134,7 +131,6 @@ final class EventTapController {
             return Unmanaged.passUnretained(event)
         }
 
-        let now = Date()
         switch type {
         case .leftMouseDown, .rightMouseDown, .otherMouseDown:
             buffer.reset()
@@ -149,7 +145,6 @@ final class EventTapController {
                 if fnHeld { seriesWords = 0 }
                 fnHeld = false
             }
-            recoverStaleGlobe(flags: event.flags, now: now)
             return Unmanaged.passUnretained(event)
         case .keyDown, .keyUp:
             break
@@ -159,7 +154,7 @@ final class EventTapController {
 
         let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
         if keyCode == Self.globeKeyCode {
-            handleGlobe(type: type, event: event, now: now)
+            handleGlobe(type: type)
             // Consume the Globe key so TextInputSwitcher never shows the HUD.
             return nil
         }
@@ -172,9 +167,7 @@ final class EventTapController {
             return Unmanaged.passUnretained(event)
         }
 
-        recoverStaleGlobe(flags: event.flags, now: now)
-
-        if globeIsDown || fnHeld {
+        if fnHeld {
             // Globe is acting as a modifier, not as a layout switch.
             globeUsedAsModifier = true
             if keyCode == Self.escapeKeyCode && isRetypeEnabled() {
@@ -192,41 +185,19 @@ final class EventTapController {
         return Unmanaged.passUnretained(event)
     }
 
-    /// Globe key-down/up. The layout switches on key-up, and only if no other key was used.
-    private func handleGlobe(type: CGEventType, event: CGEvent, now: Date) {
-        if type == .keyDown {
-            let isRepeat = event.getIntegerValueField(.keyboardEventAutorepeat) != 0
-            // A non-repeat key-down while "down" means a key-up got lost: start a fresh press.
-            // Do not reset globeUsedAsModifier here: the 179 key-down may arrive only
-            // at release, after Fn+Esc. It is reset on the Fn flag's rising edge instead.
-            if !isRepeat {
-                globeIsDown = true
-                lastGlobeDownTime = now
-            }
-        } else {
-            globeIsDown = false
-            if !globeUsedAsModifier {
-                switcher.switchToAlternativeLayout()
-            }
-            globeUsedAsModifier = false
+    /// Globe key-down/up. Key-down is just consumed; the layout switches on key-up,
+    /// and only if no other key was used while it was held.
+    private func handleGlobe(type: CGEventType) {
+        guard type == .keyUp else { return }
+        if !globeUsedAsModifier {
+            switcher.switchToAlternativeLayout()
         }
+        globeUsedAsModifier = false
     }
 
-    /// If a Globe key-up got lost, stop treating Globe as held once Fn is really released.
-    private func recoverStaleGlobe(flags: CGEventFlags, now: Date) {
-        if globeIsDown, !flags.contains(.maskSecondaryFn),
-           now.timeIntervalSince(lastGlobeDownTime) > 1.0 {
-            globeIsDown = false
-            log("stale Globe state cleared")
-        }
-    }
-
-    /// Feeds a normal key-down into the word buffer (never records under secure input).
+    /// Feeds a normal key-down into the word buffer. Under secure input macOS does
+    /// not deliver keystrokes to event taps at all, so nothing is recorded there.
     private func record(keyCode: Int64, event: CGEvent) {
-        if IsSecureEventInputEnabled() {
-            buffer.reset()
-            return
-        }
         let keyboardType = event.getIntegerValueField(.keyboardEventKeyboardType)
         if keyboardType > 0 { lastKeyboardType = keyboardType }
 

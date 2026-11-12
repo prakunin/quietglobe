@@ -12,11 +12,11 @@ Please do not report security issues in public GitHub issues.
 
 Use GitHub Security Advisories:
 
-https://github.com/Nishikinodzuki/quietglobe/security/advisories/new
+https://github.com/prakunin/quietglobe/security/advisories/new
 
 Or contact the maintainer through the GitHub profile:
 
-https://github.com/Nishikinodzuki
+https://github.com/prakunin
 
 Please include:
 

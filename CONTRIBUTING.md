@@ -10,8 +10,8 @@ Thanks for taking the time to contribute.
 
 ## Where to ask
 
-- **Bug reports and concrete feature requests:** [open an issue](https://github.com/Nishikinodzuki/quietglobe/issues).
-- **Ideas, questions, and general feedback:** [GitHub Discussions](https://github.com/Nishikinodzuki/quietglobe/discussions) (Ideas / Q&A).
+- **Bug reports and concrete feature requests:** [open an issue](https://github.com/prakunin/quietglobe/issues).
+- **Ideas, questions, and general feedback:** also via issues.
 - **Security issues:** do not open a public issue; see [SECURITY.md](SECURITY.md).
 
 ## Development
