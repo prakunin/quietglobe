@@ -31,52 +31,51 @@ final class Retyper {
 
     private let switcher: InputSourceSwitcher
     private let queue = DispatchQueue(label: "quietglobe.retyper", qos: .userInteractive)
-    /// Touched on the main thread only.
-    private var isBusy = false
 
     init(switcher: InputSourceSwitcher) {
         self.switcher = switcher
     }
 
-    /// Starts a retype of `word` + `tail` spaces. Returns immediately; call on the main thread.
-    func retype(word: [WordBuffer.Key], tail: Int, keyboardType: Int64) {
-        guard !word.isEmpty, !isBusy else { return }
-        isBusy = true
-        log("retype started: \(word.count) keys, \(tail) spaces")
-
+    /// Queues a retype: delete `deleteCount` characters, optionally switch layout, replay `keys`.
+    /// Returns immediately; jobs run in order on a serial queue, so a quick second Esc is not dropped.
+    func retype(keys: [WordBuffer.Key], deleteCount: Int, switchLayout: Bool, keyboardType: Int64) {
+        guard !keys.isEmpty else { return }
+        log("retype queued: \(keys.count) keys, delete \(deleteCount), switch \(switchLayout)")
         queue.async { [self] in
-            run(word: word, tail: tail, keyboardType: keyboardType)
-            DispatchQueue.main.async { self.isBusy = false }
+            run(keys: keys, deleteCount: deleteCount, switchLayout: switchLayout, keyboardType: keyboardType)
         }
     }
 
-    private func run(word: [WordBuffer.Key], tail: Int, keyboardType: Int64) {
-        // Check there is somewhere to switch BEFORE deleting anything.
-        guard let targetID = onMain({ switcher.alternativeLayoutID() }) else {
-            log("retype aborted: no alternative layout")
-            return
+    private func run(keys: [WordBuffer.Key], deleteCount: Int, switchLayout: Bool, keyboardType: Int64) {
+        var targetID: String?
+        if switchLayout {
+            // Check there is somewhere to switch BEFORE deleting anything.
+            guard let id = onMain({ switcher.alternativeLayoutID() }) else {
+                log("retype aborted: no alternative layout")
+                return
+            }
+            targetID = id
         }
         guard let source = CGEventSource(stateID: .privateState) else {
             log("retype aborted: no event source")
             return
         }
 
-        for _ in 0..<(word.count + tail) {
+        for _ in 0..<deleteCount {
             post(keyCode: Self.backspaceKeyCode, shift: false, option: false, source: source, keyboardType: keyboardType)
         }
 
-        _ = onMain { switcher.switchToAlternativeLayoutReportingTarget() }
-        if waitForLayout(targetID) {
-            usleep(Self.settleDelay)
-        } else {
-            log("layout switch not confirmed within timeout, typing anyway")
+        if let targetID {
+            _ = onMain { switcher.switchToAlternativeLayoutReportingTarget() }
+            if waitForLayout(targetID) {
+                usleep(Self.settleDelay)
+            } else {
+                log("layout switch not confirmed within timeout, typing anyway")
+            }
         }
 
-        for key in word {
+        for key in keys {
             post(keyCode: key.keyCode, shift: key.shift, option: key.option, source: source, keyboardType: keyboardType)
-        }
-        for _ in 0..<tail {
-            post(keyCode: WordBuffer.Code.space, shift: false, option: false, source: source, keyboardType: keyboardType)
         }
         log("retype finished")
     }

@@ -1,6 +1,6 @@
 import Foundation
 
-/// Pure in-memory record of the word the user is typing right now.
+/// Pure in-memory record of the keystrokes of the line the user is typing.
 ///
 /// It stores physical key codes (not characters), so the same keys can be
 /// replayed after the keyboard layout has changed. The buffer holds no
@@ -22,17 +22,14 @@ struct WordBuffer {
         static let escape: UInt16 = 53
     }
 
-    /// Maximum number of keys in the word (and in the trailing spaces).
-    static let maxKeys = 64
+    /// Maximum number of entries kept; on overflow the oldest are dropped.
+    static let maxKeys = 256
 
-    /// Keys of the current word, oldest first.
-    private(set) var word: [Key] = []
-    /// Number of spaces typed after the word.
-    private(set) var tailSpaces = 0
-    /// Set when the word grew past `maxKeys`; the word is then unreliable and ignored.
-    private(set) var overflowed = false
+    /// Keystrokes of the current line since the last reset, oldest first.
+    /// Spaces are entries too (key code 49).
+    private(set) var entries: [Key] = []
 
-    var isEmpty: Bool { word.isEmpty }
+    var isEmpty: Bool { entries.isEmpty }
 
     /// Main-block keys that produce text: letters, digit row, punctuation.
     /// In layouts such as Russian, punctuation keys are letters, so they belong to the word.
@@ -43,9 +40,23 @@ struct WordBuffer {
 
     /// Forgets everything (cursor moved, app changed, secure input, ...).
     mutating func reset() {
-        word.removeAll()
-        tailSpaces = 0
-        overflowed = false
+        entries.removeAll()
+    }
+
+    /// Index in `entries` where the n-th word from the end starts, or nil if there are fewer
+    /// than `n` words. A word is a maximal run of non-space entries; spaces after the last
+    /// word belong to the suffix.
+    func suffixStart(words n: Int) -> Int? {
+        guard n > 0 else { return nil }
+        var i = entries.count
+        var start = i
+        for _ in 0..<n {
+            while i > 0, entries[i - 1].keyCode == Code.space { i -= 1 }
+            guard i > 0 else { return nil }
+            while i > 0, entries[i - 1].keyCode != Code.space { i -= 1 }
+            start = i
+        }
+        return start
     }
 
     /// Feeds one key-down event into the buffer.
@@ -57,49 +68,21 @@ struct WordBuffer {
         }
 
         if keyCode == Code.delete {
-            deleteBackward()
+            if !entries.isEmpty { entries.removeLast() }
         } else if keyCode == Code.space {
-            appendSpace()
+            append(Key(keyCode: Code.space, shift: false, option: false))
         } else if Self.isPrintable(keyCode) {
-            appendKey(Key(keyCode: keyCode, shift: shift, option: option))
+            append(Key(keyCode: keyCode, shift: shift, option: option))
         } else {
             // Return, Tab, Escape, arrows, Home/End, PgUp/PgDn, forward delete, F-keys, ...
             reset()
         }
     }
 
-    private mutating func appendKey(_ key: Key) {
-        if tailSpaces > 0 {
-            // A new word starts after the spaces; the previous one is out of reach.
-            word.removeAll()
-            tailSpaces = 0
-            overflowed = false
+    private mutating func append(_ key: Key) {
+        if entries.count >= Self.maxKeys {
+            entries.removeFirst(entries.count - Self.maxKeys + 1)
         }
-        if overflowed { return }
-        if word.count >= Self.maxKeys {
-            word.removeAll()
-            overflowed = true
-            return
-        }
-        word.append(key)
-    }
-
-    private mutating func appendSpace() {
-        // A space ends an over-long word: the next key starts a fresh one.
-        overflowed = false
-        guard !word.isEmpty else { return }
-        if tailSpaces >= Self.maxKeys {
-            reset()
-            return
-        }
-        tailSpaces += 1
-    }
-
-    private mutating func deleteBackward() {
-        if tailSpaces > 0 {
-            tailSpaces -= 1
-        } else if !word.isEmpty {
-            word.removeLast()
-        }
+        entries.append(key)
     }
 }

@@ -33,6 +33,12 @@ final class EventTapController {
     // sure a press produces exactly one layout switch.
     private var globeIsDown = false
     private var globeUsedAsModifier = false
+    /// Fn is held according to the modifier flags. On built-in keyboards (macOS 27)
+    /// holding Fn produces only flagsChanged (keycode 63) and no keycode-179 key-down
+    /// until release, so the flag is the reliable "Fn is held" signal.
+    private var fnHeld = false
+    /// Words already converted in the current Fn-held series (0 = no series).
+    private var seriesWords = 0
     private var lastGlobeDownTime = Date.distantPast
     /// The Esc key-down of Fn+Esc was consumed, so its key-up must be too.
     private var swallowEscapeUp = false
@@ -105,6 +111,8 @@ final class EventTapController {
         buffer.reset()
         globeIsDown = false
         globeUsedAsModifier = false
+        fnHeld = false
+        seriesWords = 0
         swallowEscapeUp = false
         log("event tap stopped")
     }
@@ -132,6 +140,15 @@ final class EventTapController {
             buffer.reset()
             return Unmanaged.passUnretained(event)
         case .flagsChanged:
+            let fnNow = event.flags.contains(.maskSecondaryFn)
+            if fnNow && !fnHeld {
+                fnHeld = true
+                seriesWords = 0
+                globeUsedAsModifier = false  // a new Fn press starts clean
+            } else if !fnNow {
+                if fnHeld { seriesWords = 0 }
+                fnHeld = false
+            }
             recoverStaleGlobe(flags: event.flags, now: now)
             return Unmanaged.passUnretained(event)
         case .keyDown, .keyUp:
@@ -157,7 +174,7 @@ final class EventTapController {
 
         recoverStaleGlobe(flags: event.flags, now: now)
 
-        if globeIsDown {
+        if globeIsDown || fnHeld {
             // Globe is acting as a modifier, not as a layout switch.
             globeUsedAsModifier = true
             if keyCode == Self.escapeKeyCode && isRetypeEnabled() {
@@ -180,16 +197,18 @@ final class EventTapController {
         if type == .keyDown {
             let isRepeat = event.getIntegerValueField(.keyboardEventAutorepeat) != 0
             // A non-repeat key-down while "down" means a key-up got lost: start a fresh press.
+            // Do not reset globeUsedAsModifier here: the 179 key-down may arrive only
+            // at release, after Fn+Esc. It is reset on the Fn flag's rising edge instead.
             if !isRepeat {
                 globeIsDown = true
-                globeUsedAsModifier = false
                 lastGlobeDownTime = now
             }
-        } else if globeIsDown {
+        } else {
             globeIsDown = false
             if !globeUsedAsModifier {
                 switcher.switchToAlternativeLayout()
             }
+            globeUsedAsModifier = false
         }
     }
 
@@ -221,16 +240,14 @@ final class EventTapController {
         )
     }
 
-    /// Hands the buffered word to the retyper; the tap callback returns immediately.
+    /// Converts the last `seriesWords + 1` words; the layout switches on the first one only.
     private func startRetype() {
         guard !IsSecureEventInputEnabled() else { return }
-        let word = bufferedWord
-        guard !word.word.isEmpty else { return }
-        retyper.retype(word: word.word, tail: word.tail, keyboardType: lastKeyboardType)
-    }
-
-    private var bufferedWord: (word: [WordBuffer.Key], tail: Int) {
-        (buffer.word, buffer.tailSpaces)
+        let n = seriesWords + 1
+        guard let start = buffer.suffixStart(words: n) else { return }
+        let keys = Array(buffer.entries[start...])
+        seriesWords = n
+        retyper.retype(keys: keys, deleteCount: keys.count, switchLayout: n == 1, keyboardType: lastKeyboardType)
     }
 }
 
