@@ -45,7 +45,7 @@ If you searched for **“disable ABC/Russian popup macOS”**, **“macOS input 
 curl -fsSL https://raw.githubusercontent.com/prakunin/quietglobe/main/install.sh | bash
 ```
 
-It downloads the latest prebuilt release, verifies its SHA-256 checksum, installs to `/Applications` (or `~/Applications` if needed), and opens QuietGlobe. No Xcode Command Line Tools needed, and no quarantine to remove because `curl` does not set it. The app is signed with a self-signed certificate (not notarized by Apple), so downloading the zip from the Releases page in a browser may trigger Gatekeeper; the installer avoids that. Pin a version with `VERSION=1.1.0`; build from source with `FROM_SOURCE=1` (needs Xcode Command Line Tools).
+It downloads the latest prebuilt release, verifies its SHA-256 checksum, installs to `/Applications` (or `~/Applications` if needed), and opens QuietGlobe. No Xcode Command Line Tools needed, and no quarantine to remove because `curl` does not set it. The app is signed with a self-signed certificate (not notarized by Apple), so downloading the zip from the Releases page in a browser may trigger Gatekeeper; the installer avoids that. Pin a version with `VERSION=1.1.1`; build from source with `FROM_SOURCE=1` (needs Xcode Command Line Tools).
 
 After installation, open **QuietGlobe** from `/Applications` if it is not already open — it runs in the menu bar (no Dock icon).
 

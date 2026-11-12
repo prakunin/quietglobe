@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Installs QuietGlobe (prakunin fork, with Fn+Esc).
 # Default: downloads the latest signed release from GitHub (no Xcode needed).
-# Env: VERSION (e.g. 1.1.0; default latest), INSTALL_DIR (default /Applications
+# Env: VERSION (e.g. 1.1.1; default latest), INSTALL_DIR (default /Applications
 #      or ~/Applications), NO_OPEN=1 (do not launch),
 #      FROM_SOURCE=1 (build from source instead; needs Xcode Command Line Tools;
 #      REF = branch/tag, default main).
