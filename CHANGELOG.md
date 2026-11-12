@@ -7,9 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.2] - 2026-11-12
+
 ### Changed
 
 - The "Enabled" menu item is replaced by two independent toggles: "🌐 Switch layout without popup" and "Fn+Esc: retype last word". With Globe switching off, macOS handles the key natively. The old setting is migrated automatically.
+- Built with Swift Package Manager; Sparkle comes in as a package dependency.
+
+### Internal
+
+- Globe/Fn/Esc key handling moved into a pure `KeyStateMachine` and covered by Swift Testing tests (46 in total).
+- CI builds and tests every push and pull request; GitHub Actions are pinned by commit SHA.
 
 ## [1.1.1] - 2026-11-12
 
