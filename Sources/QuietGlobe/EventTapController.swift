@@ -23,15 +23,18 @@ final class EventTapController {
     private let retyper: Retyper
     /// Asked on every Fn+Esc, so the menu toggle takes effect immediately.
     private let isRetypeEnabled: () -> Bool
+    private let isGlobeEnabled: () -> Bool
     private var machine = KeyStateMachine()
     private var appObserver: NSObjectProtocol?
     private var eventTap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
 
-    init(switcher: InputSourceSwitcher, isRetypeEnabled: @escaping () -> Bool = { true }) {
+    init(switcher: InputSourceSwitcher, isRetypeEnabled: @escaping () -> Bool = { true },
+         isGlobeEnabled: @escaping () -> Bool = { true }) {
         self.switcher = switcher
         self.retyper = Retyper(switcher: switcher)
         self.isRetypeEnabled = isRetypeEnabled
+        self.isGlobeEnabled = isGlobeEnabled
     }
 
     var isRunning: Bool {
@@ -131,10 +134,14 @@ final class EventTapController {
                 isAutorepeat: event.getIntegerValueField(.keyboardEventAutorepeat) != 0,
                 keyboardType: event.getIntegerValueField(.keyboardEventKeyboardType),
                 retypeEnabled: isRetypeEnabled,
+                globeEnabled: isGlobeEnabled,
                 secureInputEnabled: { IsSecureEventInputEnabled() }
             )
         case .keyUp:
-            output = machine.keyUp(keyCode: event.getIntegerValueField(.keyboardEventKeycode))
+            output = machine.keyUp(
+                keyCode: event.getIntegerValueField(.keyboardEventKeycode),
+                globeEnabled: isGlobeEnabled
+            )
         default:
             return Unmanaged.passUnretained(event)
         }

@@ -35,6 +35,29 @@ private extension KeyStateMachine {
 @Suite struct KeyStateMachineTests {
     // MARK: Globe
 
+    @Test func globeDisabledPassesDownAndUpWithoutAction() {
+        var m = KeyStateMachine()
+        #expect(m.keyDown(keyCode: globe, globeEnabled: { false }) == .pass)
+        #expect(m.keyUp(keyCode: globe, globeEnabled: { false }) == .pass)
+    }
+
+    @Test func fnEscStillRetypesWithGlobeDisabled() {
+        var m = KeyStateMachine()
+        m.typeKeys(ghbdtn)
+        m.fnDown()
+        let out = m.keyDown(keyCode: esc, globeEnabled: { false })
+        #expect(out.consume)
+        #expect(out.action != nil)
+    }
+
+    @Test func reEnablingGlobeRestoresSwitching() {
+        var m = KeyStateMachine()
+        #expect(m.keyDown(keyCode: globe, globeEnabled: { false }) == .pass)
+        #expect(m.keyUp(keyCode: globe, globeEnabled: { false }) == .pass)
+        #expect(m.keyDown(keyCode: globe, globeEnabled: { true }) == .consumed)
+        #expect(m.keyUp(keyCode: globe, globeEnabled: { true }) == .init(consume: true, action: .switchLayout))
+    }
+
     @Test func globeKeyDownAndUpAreAlwaysConsumed() {
         var m = KeyStateMachine()
         #expect(m.keyDown(keyCode: globe) == .consumed)

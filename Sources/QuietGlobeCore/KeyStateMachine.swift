@@ -77,10 +77,12 @@ public struct KeyStateMachine {
         return .pass
     }
 
-    /// Key-up. Globe is always consumed (the layout switches here); an Esc key-up
+    /// Key-up. Globe is consumed (unless `globeEnabled` says it is off) (the layout switches here); an Esc key-up
     /// after a consumed Fn+Esc is swallowed; everything else passes.
-    public mutating func keyUp(keyCode: Int64) -> Output {
+    public mutating func keyUp(keyCode: Int64, globeEnabled: () -> Bool = { true }) -> Output {
         if keyCode == Self.globeKeyCode {
+            // Globe switching off: leave the key to macOS untouched.
+            guard globeEnabled() else { return .pass }
             var output = Output.consumed
             if !globeUsedAsModifier {
                 output.action = .switchLayout
@@ -109,10 +111,12 @@ public struct KeyStateMachine {
         isAutorepeat: Bool = false,
         keyboardType: Int64 = 0,
         retypeEnabled: () -> Bool = { true },
+        globeEnabled: () -> Bool = { true },
         secureInputEnabled: () -> Bool = { false }
     ) -> Output {
         // Globe key-down is just consumed; the layout switches on key-up.
-        if keyCode == Self.globeKeyCode { return .consumed }
+        // With Globe switching off the key goes to macOS untouched.
+        if keyCode == Self.globeKeyCode { return globeEnabled() ? .consumed : .pass }
 
         if fnHeld {
             // Globe is acting as a modifier, not as a layout switch.

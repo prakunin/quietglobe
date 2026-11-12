@@ -73,10 +73,10 @@ Release builds are signed with a stable certificate, so the Accessibility permis
 - Press **🌐 (Globe/Fn)** to switch between your last used keyboard layouts.
 - The Globe key must be configured as **“Change Input Source”** in **System Settings → Keyboard**.
 - QuietGlobe lives in the menu bar. Click the 🌐 globe to:
-  - **Enabled** — toggle Globe key interception.
+  - **🌐 Switch layout without popup** — toggle Globe key interception; when off, macOS handles 🌐 natively (with its popup).
+  - **Fn+Esc: retype last word** — toggle the retype hotkey. The two toggles are independent (both on by default); the tap stops when both are off.
   - **Launch at Login** — start QuietGlobe when you log in.
   - **Accessibility Settings…** — open the exact permission pane.
-  - **Fn+Esc: retype last word** — toggle the retype hotkey (on by default).
   - **Quit QuietGlobe**.
 
 The layout switches when you **release** 🌐, and only if no other key was pressed while it was held — so 🌐 still works as a modifier (Fn+Esc and friends).

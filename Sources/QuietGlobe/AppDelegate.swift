@@ -13,8 +13,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SPUStandardUserDriverD
     private let switcher = InputSourceSwitcher()
     private lazy var eventTap = EventTapController(
         switcher: switcher,
-        isRetypeEnabled: { AppDelegate.retypeEnabled }
+        isRetypeEnabled: { AppDelegate.retypeEnabled },
+        isGlobeEnabled: { AppDelegate.globeEnabled }
     )
+
+    /// Globe layout switching toggle, persisted; on by default.
+    static var globeEnabled: Bool {
+        get { UserDefaults.standard.object(forKey: "globeEnabled") as? Bool ?? true }
+        set { UserDefaults.standard.set(newValue, forKey: "globeEnabled") }
+    }
+
+    /// Migrates the old master switch `enabled` into the two feature toggles.
+    private static func migrateSettings() {
+        let d = UserDefaults.standard
+        guard let old = d.object(forKey: "enabled") as? Bool else { return }
+        if d.object(forKey: "globeEnabled") == nil { d.set(old, forKey: "globeEnabled") }
+        if !old, d.object(forKey: "retypeEnabled") == nil { d.set(false, forKey: "retypeEnabled") }
+        d.removeObject(forKey: "enabled")
+    }
+
+    /// The event tap is needed while at least one feature is on.
+    private var anyFeatureEnabled: Bool { Self.globeEnabled || Self.retypeEnabled }
 
     /// Fn+Esc retype toggle, persisted; on by default.
     static var retypeEnabled: Bool {
@@ -30,22 +49,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SPUStandardUserDriverD
     )
 
     private var statusItem: NSStatusItem!
-    private var enabledItem: NSMenuItem!
+    private var globeItem: NSMenuItem!
     private var retypeItem: NSMenuItem!
     private var loginItem: NSMenuItem!
     private var accessItem: NSMenuItem!
     private var permissionTimer: Timer?
-    private var isEnabled = true
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
         _ = updaterController // start Sparkle
-        isEnabled = UserDefaults.standard.object(forKey: "enabled") as? Bool ?? true
+        Self.migrateSettings()
 
         setupStatusItem()
         updateUI()
 
-        guard isEnabled else { return }
+        guard anyFeatureEnabled else { return }
 
         if AXIsProcessTrusted() {
             eventTap.start()
@@ -70,9 +88,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SPUStandardUserDriverD
 
         let menu = NSMenu()
 
-        enabledItem = NSMenuItem(title: "Enabled", action: #selector(toggleEnabled), keyEquivalent: "")
-        enabledItem.target = self
-        menu.addItem(enabledItem)
+        globeItem = NSMenuItem(title: "🌐 Switch layout without popup", action: #selector(toggleGlobe), keyEquivalent: "")
+        globeItem.target = self
+        menu.addItem(globeItem)
 
         retypeItem = NSMenuItem(title: "Fn+Esc: retype last word", action: #selector(toggleRetype), keyEquivalent: "")
         retypeItem.target = self
@@ -120,8 +138,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SPUStandardUserDriverD
             statusItem.button?.image?.isTemplate = true
             statusItem.button?.alphaValue = 1.0
             statusItem.button?.toolTip = "QuietGlobe — Accessibility permission required"
-            enabledItem.state = .off
-            enabledItem.isEnabled = false
+            globeItem.isEnabled = false
+            retypeItem.isEnabled = false
             accessItem.title = "Grant Accessibility…"
             accessItem.isEnabled = true
         } else {
@@ -130,14 +148,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SPUStandardUserDriverD
                 accessibilityDescription: "QuietGlobe"
             )
             statusItem.button?.image?.isTemplate = true
-            statusItem.button?.alphaValue = isEnabled ? 1.0 : 0.45
-            statusItem.button?.toolTip = isEnabled ? "QuietGlobe — On" : "QuietGlobe — Off"
-            enabledItem.isEnabled = true
-            enabledItem.state = isEnabled ? .on : .off
+            statusItem.button?.alphaValue = anyFeatureEnabled ? 1.0 : 0.45
+            statusItem.button?.toolTip = anyFeatureEnabled ? "QuietGlobe — On" : "QuietGlobe — Off"
+            globeItem.isEnabled = true
+            retypeItem.isEnabled = true
             accessItem.title = "Accessibility Settings…"
             accessItem.isEnabled = true
         }
 
+        globeItem.state = Self.globeEnabled ? .on : .off
         retypeItem.state = Self.retypeEnabled ? .on : .off
         updateLoginItem()
     }
@@ -149,30 +168,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SPUStandardUserDriverD
 
     // MARK: - Actions
 
-    @objc private func toggleEnabled() {
+    @objc private func toggleGlobe() {
+        toggleFeature { Self.globeEnabled.toggle() }
+    }
+
+    @objc private func toggleRetype() {
+        toggleFeature { Self.retypeEnabled.toggle() }
+    }
+
+    /// Flips one feature, then starts or stops the event tap to match.
+    private func toggleFeature(_ flip: () -> Void) {
         guard AXIsProcessTrusted() else {
             requestAccessibility()
             startPermissionPolling()
             return
         }
 
-        isEnabled.toggle()
-        UserDefaults.standard.set(isEnabled, forKey: "enabled")
+        flip()
+        syncEventTap()
+        updateUI()
+    }
 
-        if isEnabled {
-            if !eventTap.start() {
+    private func syncEventTap() {
+        if anyFeatureEnabled {
+            if !eventTap.isRunning, !eventTap.start() {
                 log("failed to start event tap")
             }
         } else {
             eventTap.stop()
         }
-
-        updateUI()
-    }
-
-    @objc private func toggleRetype() {
-        Self.retypeEnabled.toggle()
-        retypeItem.state = Self.retypeEnabled ? .on : .off
     }
 
     @objc private func toggleLogin() {
@@ -248,9 +272,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SPUStandardUserDriverD
             timer.invalidate()
             self.permissionTimer = nil
 
-            if self.isEnabled {
-                self.eventTap.start()
-            }
+            self.syncEventTap()
             self.updateUI()
         }
     }
