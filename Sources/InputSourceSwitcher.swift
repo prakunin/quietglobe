@@ -24,10 +24,36 @@ final class InputSourceSwitcher {
         guard now.timeIntervalSince(lastSwitchTime) >= debounceInterval else { return }
         lastSwitchTime = now
 
+        guard let target = alternativeLayout() else { return }
+        select(target)
+    }
+
+    /// Switches to the alternative layout without debounce and returns its id
+    /// (nil if there is none). Used by the retyper, which needs the target id
+    /// to wait until the switch has really happened. Main thread only (TIS API).
+    func switchToAlternativeLayoutReportingTarget() -> String? {
+        guard let target = alternativeLayout() else { return nil }
+        guard select(target) else { return nil }
+        return inputSourceID(target)
+    }
+
+    /// Id of the layout the next switch would select, without switching. Main thread only.
+    func alternativeLayoutID() -> String? {
+        alternativeLayout().flatMap { inputSourceID($0) }
+    }
+
+    /// Id of the currently active keyboard layout. Main thread only.
+    func currentInputSourceID() -> String? {
+        guard let source = TISCopyCurrentKeyboardInputSource()?.takeRetainedValue() else { return nil }
+        return inputSourceID(source)
+    }
+
+    /// Picks the remembered layout, else the first enabled layout that is not the current one.
+    private func alternativeLayout() -> TISInputSource? {
         let layouts = enabledKeyboardLayouts()
         guard !layouts.isEmpty else {
             log("no enabled keyboard layouts")
-            return
+            return nil
         }
 
         let currentID = currentInputSourceID()
@@ -41,18 +67,21 @@ final class InputSourceSwitcher {
             target = layouts.first(where: { inputSourceID($0) != currentID })
         }
 
-        guard let target else {
-            log("no alternative layout")
-            return
-        }
+        if target == nil { log("no alternative layout") }
+        return target
+    }
 
+    @discardableResult
+    private func select(_ target: TISInputSource) -> Bool {
+        let currentID = currentInputSourceID()
         let status = TISSelectInputSource(target)
         if status == noErr {
             defaults.set(currentID, forKey: "lastInputSourceID")
             log("switched \(currentID ?? "?") -> \(inputSourceID(target) ?? "?")")
-        } else {
-            log("switch failed with status \(status)")
+            return true
         }
+        log("switch failed with status \(status)")
+        return false
     }
 
     /// Returns enabled keyboard layouts only (no input methods, emoji, etc.).
@@ -66,11 +95,6 @@ final class InputSourceSwitcher {
             return []
         }
         return result as? [TISInputSource] ?? []
-    }
-
-    private func currentInputSourceID() -> String? {
-        guard let source = TISCopyCurrentKeyboardInputSource()?.takeRetainedValue() else { return nil }
-        return inputSourceID(source)
     }
 
     private func inputSourceID(_ source: TISInputSource) -> String? {

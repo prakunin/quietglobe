@@ -10,10 +10,20 @@ import ServiceManagement
 /// - handles Accessibility permission and login-item state.
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let switcher = InputSourceSwitcher()
-    private lazy var eventTap = EventTapController(switcher: switcher)
+    private lazy var eventTap = EventTapController(
+        switcher: switcher,
+        isRetypeEnabled: { AppDelegate.retypeEnabled }
+    )
+
+    /// Fn+Esc retype toggle, persisted; on by default.
+    static var retypeEnabled: Bool {
+        get { UserDefaults.standard.object(forKey: "retypeEnabled") as? Bool ?? true }
+        set { UserDefaults.standard.set(newValue, forKey: "retypeEnabled") }
+    }
 
     private var statusItem: NSStatusItem!
     private var enabledItem: NSMenuItem!
+    private var retypeItem: NSMenuItem!
     private var loginItem: NSMenuItem!
     private var accessItem: NSMenuItem!
     private var permissionTimer: Timer?
@@ -54,6 +64,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         enabledItem = NSMenuItem(title: "Enabled", action: #selector(toggleEnabled), keyEquivalent: "")
         enabledItem.target = self
         menu.addItem(enabledItem)
+
+        retypeItem = NSMenuItem(title: "Fn+Esc: retype last word", action: #selector(toggleRetype), keyEquivalent: "")
+        retypeItem.target = self
+        menu.addItem(retypeItem)
 
         menu.addItem(.separator())
 
@@ -107,6 +121,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             accessItem.isEnabled = true
         }
 
+        retypeItem.state = Self.retypeEnabled ? .on : .off
         updateLoginItem()
     }
 
@@ -136,6 +151,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         updateUI()
+    }
+
+    @objc private func toggleRetype() {
+        Self.retypeEnabled.toggle()
+        retypeItem.state = Self.retypeEnabled ? .on : .off
     }
 
     @objc private func toggleLogin() {
