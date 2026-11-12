@@ -75,6 +75,7 @@ Release builds are signed with a stable certificate, so the Accessibility permis
 - QuietGlobe lives in the menu bar. Click the 🌐 globe to:
   - **🌐 Switch layout without popup** — toggle Globe key interception; when off, macOS handles 🌐 natively (with its popup).
   - **Fn+Esc: retype last word** — toggle the retype hotkey. The two toggles are independent (both on by default); the tap stops when both are off.
+  - **Check for Updates…** / **Check for Updates Automatically** — check now, or toggle the daily automatic check.
   - **Launch at Login** — start QuietGlobe when you log in.
   - **Accessibility Settings…** — open the exact permission pane.
   - **Quit QuietGlobe**.
@@ -87,6 +88,7 @@ Typed `ghbdtn` while in the Latin layout? Press **Fn+Esc** → it becomes `пр�
 
 - **Fn+Esc** — deletes the last word and retypes the same keys in the other layout. Trailing spaces are kept.
 - **Series:** keep holding **Fn** and press **Esc** again — the previous word is added (2 words, then 3, …). The layout switches only on the first Esc of the series. Releasing Fn ends the series.
+- If there is nothing to convert (empty buffer, no more words in the series, secure input), Fn+Esc beeps.
 - Press Fn+Esc again after releasing Fn to convert the last word back.
 - QuietGlobe remembers **key codes, not characters**, so Shift/Option combinations (e.g. Polish ą, ę) are reproduced in the target layout.
 - The remembered line resets on Return, Tab, arrows, Home/End/PgUp/PgDn, Cmd/Ctrl shortcuts, mouse clicks and app switches. Nothing is recorded while macOS secure input (password fields) is active.

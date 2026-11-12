@@ -21,6 +21,8 @@ public struct KeyStateMachine {
         case switchLayout
         /// Fn+Esc: delete `deleteCount` characters and replay `keys` in the other layout.
         case retype(keys: [WordBuffer.Key], deleteCount: Int, switchLayout: Bool, keyboardType: Int64)
+        /// Fn+Esc with nothing to convert (empty buffer, no more words, secure input): the caller beeps.
+        case nothingToRetype
     }
 
     /// What to do with the incoming event.
@@ -126,7 +128,7 @@ public struct KeyStateMachine {
                 swallowEscapeUp = true
                 var output = Output.consumed
                 if !isAutorepeat {
-                    output.action = startRetype(secureInputEnabled: secureInputEnabled)
+                    output.action = startRetype(secureInputEnabled: secureInputEnabled) ?? .nothingToRetype
                 }
                 return output
             }

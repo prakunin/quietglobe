@@ -224,7 +224,7 @@ private extension KeyStateMachine {
         m.fnDown()
         #expect(m.keyDown(keyCode: 123) == .pass)  // Fn+Left (Home)
         #expect(m.buffer.isEmpty)
-        #expect(m.fnEsc() == .consumed)  // nothing to retype
+        #expect(m.fnEsc() == .init(consume: true, action: .nothingToRetype))  // nothing to retype
     }
 
     @Test func fnEscWithRetypeDisabledResetsBufferAndPasses() {
@@ -253,10 +253,37 @@ private extension KeyStateMachine {
         var m = KeyStateMachine()
         m.typeKeys(ghbdtn)
         m.fnDown()
-        #expect(m.fnEsc(secure: true) == .consumed)
+        #expect(m.fnEsc(secure: true) == .init(consume: true, action: .nothingToRetype))
         #expect(m.keyUp(keyCode: esc) == .consumed)
         // Buffer is kept and the series did not advance.
         #expect(m.fnEsc().action == .retype(keys: keys(ghbdtn), deleteCount: 6, switchLayout: true, keyboardType: 0))
+    }
+
+    @Test func fnEscWithEmptyBufferIsNothingToRetype() {
+        var m = KeyStateMachine()
+        m.fnDown()
+        #expect(m.fnEsc() == .init(consume: true, action: .nothingToRetype))
+    }
+
+    @Test func fnEscPastAvailableWordsIsNothingToRetype() {
+        var m = KeyStateMachine()
+        m.typeKeys(ghbdtn)
+        m.fnDown()
+        guard case .retype? = m.fnEsc().action else { Issue.record("no retype"); return }
+        #expect(m.keyUp(keyCode: esc) == .consumed)
+        #expect(m.fnEsc() == .init(consume: true, action: .nothingToRetype))
+    }
+
+    @Test func autorepeatFnEscOnEmptyBufferHasNoAction() {
+        var m = KeyStateMachine()
+        m.fnDown()
+        #expect(m.fnEsc(autorepeat: true) == .consumed)
+    }
+
+    @Test func fnEscWithRetypeDisabledHasNoBeep() {
+        var m = KeyStateMachine()
+        m.fnDown()
+        #expect(m.fnEsc(retypeEnabled: false) == .pass)
     }
 
     @Test func escWithoutFnResetsBufferAndPasses() {

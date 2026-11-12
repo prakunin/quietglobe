@@ -53,6 +53,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SPUStandardUserDriverD
     private var retypeItem: NSMenuItem!
     private var loginItem: NSMenuItem!
     private var accessItem: NSMenuItem!
+    private var autoUpdateItem: NSMenuItem!
     private var permissionTimer: Timer?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -116,6 +117,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SPUStandardUserDriverD
         updateItem.target = updaterController
         menu.addItem(updateItem)
 
+        autoUpdateItem = NSMenuItem(
+            title: "Check for Updates Automatically",
+            action: #selector(toggleAutoUpdate),
+            keyEquivalent: ""
+        )
+        autoUpdateItem.target = self
+        menu.addItem(autoUpdateItem)
+
         let aboutItem = NSMenuItem(title: "About QuietGlobe", action: #selector(showAbout), keyEquivalent: "")
         aboutItem.target = self
         menu.addItem(aboutItem)
@@ -158,6 +167,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SPUStandardUserDriverD
 
         globeItem.state = Self.globeEnabled ? .on : .off
         retypeItem.state = Self.retypeEnabled ? .on : .off
+        autoUpdateItem.state = updaterController.updater.automaticallyChecksForUpdates ? .on : .off
         updateLoginItem()
     }
 
@@ -167,6 +177,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SPUStandardUserDriverD
     }
 
     // MARK: - Actions
+
+    @objc private func toggleAutoUpdate() {
+        let updater = updaterController.updater
+        updater.automaticallyChecksForUpdates.toggle()
+        autoUpdateItem.state = updater.automaticallyChecksForUpdates ? .on : .off
+    }
 
     @objc private func toggleGlobe() {
         toggleFeature { Self.globeEnabled.toggle() }

@@ -151,6 +151,9 @@ final class EventTapController {
             switcher.switchToAlternativeLayout()
         case let .retype(keys, deleteCount, switchLayout, keyboardType):
             retyper.retype(keys: keys, deleteCount: deleteCount, switchLayout: switchLayout, keyboardType: keyboardType)
+        case .nothingToRetype:
+            // The tap runs on the main run loop; hop explicitly to be safe.
+            DispatchQueue.main.async { NSSound.beep() }
         case nil:
             break
         }
