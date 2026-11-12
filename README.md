@@ -2,9 +2,9 @@
 
 **Disable the system-wide macOS input source indicator — the ABC/Russian popup — for any keyboard layout. Switch input sources instantly with the 🌐 Globe key: no popup, no HUD, no delay.**
 
-> **Fork of [Nishikinodzuki/quietglobe](https://github.com/Nishikinodzuki/quietglobe)** adding **Fn+Esc — retype the last word(s) in the other layout** (like Punto Switcher's “convert last word”). See [Fn+Esc](#fnesc-retype-in-the-other-layout). No prebuilt binaries: the [one-line installer](#install) builds it from source.
+> **Fork of [Nishikinodzuki/quietglobe](https://github.com/Nishikinodzuki/quietglobe)** adding **Fn+Esc — retype the last word(s) in the other layout** (like Punto Switcher's “convert last word”). See [Fn+Esc](#fnesc-retype-in-the-other-layout). Signed prebuilt [releases](https://github.com/prakunin/quietglobe/releases) with in-app [updates](#updates).
 
-**English** · [Русский](README.ru.md) · [Install](#install) · [Feedback](#feedback) · [FAQ](#faq)
+**English** · [Русский](README.ru.md) · [Install](#install) · [Updates](#updates) · [Feedback](#feedback) · [FAQ](#faq)
 
 [![macOS 13+](https://img.shields.io/badge/macOS-13%2B-blue?style=flat-square)](https://www.apple.com/macos/)
 [![Swift](https://img.shields.io/badge/Swift-5.9-orange?style=flat-square)](https://swift.org)
@@ -45,13 +45,13 @@ If you searched for **“disable ABC/Russian popup macOS”**, **“macOS input 
 curl -fsSL https://raw.githubusercontent.com/prakunin/quietglobe/main/install.sh | bash
 ```
 
-It downloads the source of this fork, builds it locally (requires Xcode Command Line Tools: `xcode-select --install`), installs to `/Applications` (or `~/Applications` if needed), and opens QuietGlobe. Building locally means there is no unsigned binary to trust and no quarantine to remove. Run the same command again to update.
+It downloads the latest prebuilt release, verifies its SHA-256 checksum, installs to `/Applications` (or `~/Applications` if needed), and opens QuietGlobe. No Xcode Command Line Tools needed, and no quarantine to remove because `curl` does not set it. The app is signed with a self-signed certificate (not notarized by Apple), so downloading the zip from the Releases page in a browser may trigger Gatekeeper; the installer avoids that. Pin a version with `VERSION=1.1.0`; build from source with `FROM_SOURCE=1` (needs Xcode Command Line Tools).
 
 After installation, open **QuietGlobe** from `/Applications` if it is not already open — it runs in the menu bar (no Dock icon).
 
 ### Manual
 
-See [Build from source](#build-from-source), then move `QuietGlobe.app` to `/Applications`. (The upstream [releases](https://github.com/Nishikinodzuki/quietglobe/releases) do **not** include Fn+Esc.)
+Download `QuietGlobe.zip` from the [Releases](https://github.com/prakunin/quietglobe/releases) page, or [build from source](#build-from-source), then move `QuietGlobe.app` to `/Applications`. (The upstream [releases](https://github.com/Nishikinodzuki/quietglobe/releases) do **not** include Fn+Esc.)
 
 ## First launch
 
@@ -61,6 +61,12 @@ See [Build from source](#build-from-source), then move `QuietGlobe.app` to `/App
 4. QuietGlobe detects the permission automatically and starts. No restart needed.
 
 > Accessibility permission cannot be granted automatically by macOS. This is a system security requirement, not an installer limitation.
+
+## Updates
+
+QuietGlobe checks for updates automatically once a day using [Sparkle](https://sparkle-project.org). You can also click the 🌐 menu → **Check for Updates…**. Updates are signed (EdDSA) and installed in place.
+
+Release builds are signed with a stable certificate, so the Accessibility permission is kept across updates. Coming from 1.0.x or a build from source (new bundle identifier and a different signature) you need to re-enable Accessibility once: remove the old QuietGlobe entry (−) and add it again. Source builds are ad-hoc signed and need this after every rebuild.
 
 ## Usage
 
@@ -144,14 +150,14 @@ QuietGlobe uses public macOS APIs: `CoreGraphics` event taps and the Carbon Text
 
 ## Privacy
 
-- No network requests.
+- The only network request is the update check (a daily fetch of the appcast from GitHub); nothing about you or your typing is sent.
 - No analytics or telemetry.
 - No keystroke content is stored or transmitted. For Fn+Esc the key codes of the current line are kept in memory only (never logged, never written to disk), and are dropped on Return, clicks, app switches and in password fields.
 - The source is open for review.
 
 ## Build from source
 
-Requirements: macOS 13+, Xcode Command Line Tools.
+Requirements: macOS 13+, Xcode Command Line Tools. The build downloads and verifies the pinned Sparkle framework automatically (`scripts/fetch-sparkle.sh`).
 
 ```bash
 git clone https://github.com/prakunin/quietglobe.git

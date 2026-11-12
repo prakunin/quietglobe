@@ -1,6 +1,7 @@
 import AppKit
 import ApplicationServices
 import ServiceManagement
+import Sparkle
 
 /// Menu bar agent for QuietGlobe.
 ///
@@ -8,7 +9,7 @@ import ServiceManagement
 /// - owns the `NSStatusItem` and its menu;
 /// - owns the `EventTapController` lifecycle;
 /// - handles Accessibility permission and login-item state.
-final class AppDelegate: NSObject, NSApplicationDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, SPUStandardUserDriverDelegate {
     private let switcher = InputSourceSwitcher()
     private lazy var eventTap = EventTapController(
         switcher: switcher,
@@ -21,6 +22,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         set { UserDefaults.standard.set(newValue, forKey: "retypeEnabled") }
     }
 
+    /// Sparkle updater: checks daily (Info.plist) and on "Check for Updates…".
+    private lazy var updaterController = SPUStandardUpdaterController(
+        startingUpdater: true,
+        updaterDelegate: nil,
+        userDriverDelegate: self
+    )
+
     private var statusItem: NSStatusItem!
     private var enabledItem: NSMenuItem!
     private var retypeItem: NSMenuItem!
@@ -31,6 +39,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
+        _ = updaterController // start Sparkle
         isEnabled = UserDefaults.standard.object(forKey: "enabled") as? Bool ?? true
 
         setupStatusItem()
@@ -80,6 +89,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(accessItem)
 
         menu.addItem(.separator())
+
+        let updateItem = NSMenuItem(
+            title: "Check for Updates…",
+            action: #selector(SPUStandardUpdaterController.checkForUpdates(_:)),
+            keyEquivalent: ""
+        )
+        updateItem.target = updaterController
+        menu.addItem(updateItem)
 
         let aboutItem = NSMenuItem(title: "About QuietGlobe", action: #selector(showAbout), keyEquivalent: "")
         aboutItem.target = self
@@ -204,6 +221,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func quit() {
         NSApp.terminate(nil)
     }
+
+    // MARK: - SPUStandardUserDriverDelegate
+
+    /// Background (LSUIElement) app: tell Sparkle we handle scheduled reminders
+    /// (we just let it show the alert immediately), so it does not warn.
+    var supportsGentleScheduledUpdateReminders: Bool { true }
 
     // MARK: - Accessibility
 

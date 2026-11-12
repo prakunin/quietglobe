@@ -1,0 +1,94 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check tag matches Info.plist
+        id: ver
+        run: |
+          set -euo pipefail
+          VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' Resources/Info.plist)"
+          BUILD="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' Resources/Info.plist)"
+          if [ "$GITHUB_REF_NAME" != "v$VERSION" ]; then
+            echo "Tag $GITHUB_REF_NAME does not match CFBundleShortVersionString $VERSION" >&2
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "build=$BUILD" >> "$GITHUB_OUTPUT"
+
+      - name: Test
+        run: bash scripts/test.sh
+
+      - name: Import signing certificate
+        env:
+          MACOS_CERT_P12_BASE64: ${{ secrets.MACOS_CERT_P12_BASE64 }}
+          MACOS_CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
+        run: |
+          set -euo pipefail
+          KEYCHAIN="$RUNNER_TEMP/release.keychain-db"
+          KEYCHAIN_PASSWORD="$(uuidgen)"
+          echo "KEYCHAIN=$KEYCHAIN" >> "$GITHUB_ENV"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -lut 3600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          printf '%s' "$MACOS_CERT_P12_BASE64" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security import "$RUNNER_TEMP/cert.p12" -k "$KEYCHAIN" -P "$MACOS_CERT_PASSWORD" -T /usr/bin/codesign
+          rm -f "$RUNNER_TEMP/cert.p12"
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN" >/dev/null
+          EXISTING="$(security list-keychains -d user | sed -e 's/^[[:space:]]*"//' -e 's/"$//')"
+          # shellcheck disable=SC2086
+          security list-keychains -d user -s "$KEYCHAIN" $EXISTING
+
+      - name: Build and sign
+        env:
+          CODESIGN_IDENTITY: QuietGlobe Self-Signed (prakunin)
+        run: |
+          set -euo pipefail
+          export CODESIGN_KEYCHAIN="$KEYCHAIN"
+          bash scripts/build.sh
+          codesign -d -r- QuietGlobe.app 2>&1 | tee requirement.txt
+          grep -q 'certificate leaf' requirement.txt || {
+            echo "Designated requirement is not certificate-based; refusing to release" >&2
+            exit 1
+          }
+
+      - name: Package
+        run: |
+          set -euo pipefail
+          ditto -c -k --sequesterRsrc --keepParent QuietGlobe.app QuietGlobe.zip
+          shasum -a 256 QuietGlobe.zip > QuietGlobe.zip.sha256
+          bash scripts/release-notes.sh "${{ steps.ver.outputs.version }}" > notes.md
+
+      - name: Appcast
+        env:
+          SPARKLE_ED_PRIVATE_KEY: ${{ secrets.SPARKLE_ED_PRIVATE_KEY }}
+        run: |
+          bash scripts/make-appcast.sh "${{ steps.ver.outputs.version }}" "${{ steps.ver.outputs.build }}" QuietGlobe.zip notes.md
+          xmllint --noout appcast.xml
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            --title "QuietGlobe ${{ steps.ver.outputs.version }}" \
+            --notes-file notes.md \
+            QuietGlobe.zip QuietGlobe.zip.sha256 appcast.xml
+
+      - name: Remove temporary keychain
+        if: always()
+        run: |
+          if [ -n "${KEYCHAIN:-}" ]; then
+            security delete-keychain "$KEYCHAIN" || true
+          fi

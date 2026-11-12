@@ -36,6 +36,16 @@ CODESIGN_IDENTITY="Apple Development: Your Name (TEAMID)" ./scripts/build.sh
 
 macOS ties Accessibility permission to the code signature. Ad-hoc and unsigned builds change identity on every rebuild, so the toggle may need to be enabled again.
 
+## Releasing
+
+1. Move the notes from `[Unreleased]` to a new `## [X.Y.Z] - date` section in `CHANGELOG.md` and commit it on `main`.
+2. Run `scripts/release.sh X.Y.Z --push`. It bumps `CFBundleShortVersionString` / `CFBundleVersion` in `Resources/Info.plist` (if needed), commits, creates the annotated tag `vX.Y.Z` and pushes it. Without `--push` it only prints the push command.
+3. The `Release` workflow (`.github/workflows/release.yml`) tests, builds, signs with the persistent self-signed certificate, and publishes `QuietGlobe.zip`, `QuietGlobe.zip.sha256` and `appcast.xml` to a GitHub release. Installed apps pick it up through Sparkle.
+
+Repository secrets: `MACOS_CERT_P12_BASE64` and `MACOS_CERT_PASSWORD` (code-signing certificate `QuietGlobe Self-Signed (prakunin)`), `SPARKLE_ED_PRIVATE_KEY` (Sparkle EdDSA key; the public key is `SUPublicEDKey` in `Info.plist`). Back up the certificate and both keys in the maintainer's password manager: losing the certificate or the EdDSA key means existing installs cannot update seamlessly and need a manual reinstall (and an Accessibility re-grant).
+
+Sparkle is pinned in `scripts/fetch-sparkle.sh` (version + SHA-256) and downloaded into the git-ignored `vendor/`; the release build is not hardened-runtime on purpose (library validation would reject Sparkle).
+
 ## Project structure
 
 - `Sources/main.swift` — app entry point (`NSApplication`, `.accessory`).
@@ -44,7 +54,7 @@ macOS ties Accessibility permission to the code signature. Ad-hoc and unsigned b
 - `Sources/InputSourceSwitcher.swift` — Text Input Sources layout switching.
 - `Sources/Log.swift` — `os.Logger` wrapper.
 - `Resources/Info.plist` — bundle metadata (`LSUIElement`, macOS 13+).
-- `scripts/build.sh` — universal build + signing.
+- `scripts/build.sh` — universal build (with Sparkle) + signing; `fetch-sparkle.sh`, `make-appcast.sh`, `release-notes.sh`, `release.sh` — release tooling.
 - `docs/assets/` — screenshots, before/after images, and the demo GIF used by the READMEs.
 
 ## How it works

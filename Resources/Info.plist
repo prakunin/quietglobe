@@ -30,5 +30,13 @@
 	<true/>
 	<key>NSHumanReadableCopyright</key>
 	<string>MIT © 2026 Nishikinodzuki, Vasili Prakunin</string>
+	<key>SUFeedURL</key>
+	<string>https://github.com/prakunin/quietglobe/releases/latest/download/appcast.xml</string>
+	<key>SUPublicEDKey</key>
+	<string>TU0NV/ragTItthAWzfrVL+qTiFkFHGUWbo0Tlnn5ju4=</string>
+	<key>SUEnableAutomaticChecks</key>
+	<true/>
+	<key>SUScheduledCheckInterval</key>
+	<integer>86400</integer>
 </dict>
 </plist>
