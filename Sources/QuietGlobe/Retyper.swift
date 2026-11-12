@@ -1,6 +1,7 @@
 import Carbon
 import CoreGraphics
 import Foundation
+import QuietGlobeCore
 
 /// Retypes the last word in the other keyboard layout (Fn+Esc).
 ///

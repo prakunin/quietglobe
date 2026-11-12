@@ -157,7 +157,7 @@ QuietGlobe uses public macOS APIs: `CoreGraphics` event taps and the Carbon Text
 
 ## Build from source
 
-Requirements: macOS 13+, Xcode Command Line Tools. The build downloads and verifies the pinned Sparkle framework automatically (`scripts/fetch-sparkle.sh`).
+Requirements: macOS 13+, Xcode Command Line Tools. The project is a Swift package; SwiftPM fetches the pinned Sparkle (`Package.swift`, `Package.resolved`) automatically. Build products go to a scratch directory outside the repo (`QG_SCRATCH`, default `$TMPDIR/quietglobe-spm`).
 
 ```bash
 git clone https://github.com/prakunin/quietglobe.git

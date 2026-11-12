@@ -157,7 +157,7 @@ macOS показывает его при смене раскладки по 🌐
 
 ## Сборка из исходников
 
-Требования: macOS 13+, Xcode Command Line Tools. Сборка сама скачивает и проверяет закреплённую версию Sparkle (`scripts/fetch-sparkle.sh`).
+Требования: macOS 13+, Xcode Command Line Tools. Проект — Swift-пакет; SwiftPM сам скачивает закреплённый Sparkle (`Package.swift`, `Package.resolved`). Артефакты сборки лежат вне репозитория (`QG_SCRATCH`, по умолчанию `$TMPDIR/quietglobe-spm`).
 
 ```bash
 git clone https://github.com/prakunin/quietglobe.git

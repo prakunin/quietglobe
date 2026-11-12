@@ -14,7 +14,7 @@ trap 'rm -rf "$tmp"' EXIT
 
 if [ -n "${FROM_SOURCE:-}" ]; then
   REF="${REF:-main}"
-  if ! xcode-select -p >/dev/null 2>&1 || ! command -v swiftc >/dev/null 2>&1; then
+  if ! xcode-select -p >/dev/null 2>&1 || ! command -v swift >/dev/null 2>&1; then
     echo "Xcode Command Line Tools are required to build from source. Run: xcode-select --install" >&2
     exit 1
   fi

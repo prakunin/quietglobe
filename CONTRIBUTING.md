@@ -19,7 +19,7 @@ Thanks for taking the time to contribute.
 Requirements:
 
 - macOS 13 or later
-- Xcode Command Line Tools (`xcode-select --install`)
+- Xcode Command Line Tools (`xcode-select --install`); Swift 6 toolchain (Xcode 16 / matching CLT)
 
 Build:
 
@@ -44,17 +44,20 @@ macOS ties Accessibility permission to the code signature. Ad-hoc and unsigned b
 
 Repository secrets: `MACOS_CERT_P12_BASE64` and `MACOS_CERT_PASSWORD` (code-signing certificate `QuietGlobe Self-Signed (prakunin)`), `SPARKLE_ED_PRIVATE_KEY` (Sparkle EdDSA key; the public key is `SUPublicEDKey` in `Info.plist`). Back up the certificate and both keys in the maintainer's password manager: losing the certificate or the EdDSA key means existing installs cannot update seamlessly and need a manual reinstall (and an Accessibility re-grant).
 
-Sparkle is pinned in `scripts/fetch-sparkle.sh` (version + SHA-256) and downloaded into the git-ignored `vendor/`; the release build is not hardened-runtime on purpose (library validation would reject Sparkle).
+Sparkle is pinned in `Package.swift` (exact version) and `Package.resolved`, fetched by SwiftPM as a binary artifact (its `sign_update` is used by `make-appcast.sh`); the release build is not hardened-runtime on purpose (library validation would reject Sparkle).
 
 ## Project structure
 
-- `Sources/main.swift` — app entry point (`NSApplication`, `.accessory`).
-- `Sources/AppDelegate.swift` — menu bar status item, menu, TCC permission, login item.
-- `Sources/EventTapController.swift` — global event tap and Globe key handling.
-- `Sources/InputSourceSwitcher.swift` — Text Input Sources layout switching.
-- `Sources/Log.swift` — `os.Logger` wrapper.
+- `Package.swift` — SwiftPM manifest (library `QuietGlobeCore`, executable `QuietGlobe`, tests; Sparkle dependency).
+- `Sources/QuietGlobeCore/` — pure logic, no AppKit: `WordBuffer` and `KeyStateMachine` (Globe/Fn/Fn+Esc state machine).
+- `Sources/QuietGlobe/main.swift` — app entry point (`NSApplication`, `.accessory`).
+- `Sources/QuietGlobe/AppDelegate.swift` — menu bar status item, menu, TCC permission, login item.
+- `Sources/QuietGlobe/EventTapController.swift` — global event tap; a thin adapter from CGEvent to `KeyStateMachine`.
+- `Sources/QuietGlobe/InputSourceSwitcher.swift` — Text Input Sources layout switching.
+- `Sources/QuietGlobe/Retyper.swift`, `Log.swift` — retyping and the `os.Logger` wrapper.
+- `Tests/QuietGlobeCoreTests/` — unit tests (Swift Testing), run with `scripts/test.sh`.
 - `Resources/Info.plist` — bundle metadata (`LSUIElement`, macOS 13+).
-- `scripts/build.sh` — universal build (with Sparkle) + signing; `fetch-sparkle.sh`, `make-appcast.sh`, `release-notes.sh`, `release.sh` — release tooling.
+- `scripts/build.sh` — universal SwiftPM build (with Sparkle) + app bundle + signing; `test.sh` (`swift test`), `make-appcast.sh`, `release-notes.sh`, `release.sh` — release tooling.
 - `docs/assets/` — screenshots, before/after images, and the demo GIF used by the READMEs.
 
 ## How it works

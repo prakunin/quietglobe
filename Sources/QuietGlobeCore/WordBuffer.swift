@@ -5,48 +5,56 @@ import Foundation
 /// It stores physical key codes (not characters), so the same keys can be
 /// replayed after the keyboard layout has changed. The buffer holds no
 /// AppKit/CoreGraphics types and never logs or persists anything.
-struct WordBuffer {
+public struct WordBuffer {
     /// One recorded keystroke: the physical key plus the modifiers that change its character.
-    struct Key: Equatable {
-        var keyCode: UInt16
-        var shift: Bool
-        var option: Bool
+    public struct Key: Equatable {
+        public var keyCode: UInt16
+        public var shift: Bool
+        public var option: Bool
+
+        public init(keyCode: UInt16, shift: Bool, option: Bool) {
+            self.keyCode = keyCode
+            self.shift = shift
+            self.option = option
+        }
     }
 
     /// Key codes (macOS virtual key codes) the buffer reacts to.
-    enum Code {
-        static let returnKey: UInt16 = 36
-        static let tab: UInt16 = 48
-        static let space: UInt16 = 49
-        static let delete: UInt16 = 51
-        static let escape: UInt16 = 53
+    public enum Code {
+        public static let returnKey: UInt16 = 36
+        public static let tab: UInt16 = 48
+        public static let space: UInt16 = 49
+        public static let delete: UInt16 = 51
+        public static let escape: UInt16 = 53
     }
 
     /// Maximum number of entries kept; on overflow the oldest are dropped.
-    static let maxKeys = 256
+    public static let maxKeys = 256
 
     /// Keystrokes of the current line since the last reset, oldest first.
     /// Spaces are entries too (key code 49).
-    private(set) var entries: [Key] = []
+    public private(set) var entries: [Key] = []
 
-    var isEmpty: Bool { entries.isEmpty }
+    public init() {}
+
+    public var isEmpty: Bool { entries.isEmpty }
 
     /// Main-block keys that produce text: letters, digit row, punctuation.
     /// In layouts such as Russian, punctuation keys are letters, so they belong to the word.
-    static func isPrintable(_ keyCode: UInt16) -> Bool {
+    public static func isPrintable(_ keyCode: UInt16) -> Bool {
         guard keyCode <= 50 else { return false }
         return keyCode != Code.returnKey && keyCode != Code.tab && keyCode != Code.space
     }
 
     /// Forgets everything (cursor moved, app changed, secure input, ...).
-    mutating func reset() {
+    public mutating func reset() {
         entries.removeAll()
     }
 
     /// Index in `entries` where the n-th word from the end starts, or nil if there are fewer
     /// than `n` words. A word is a maximal run of non-space entries; spaces after the last
     /// word belong to the suffix.
-    func suffixStart(words n: Int) -> Int? {
+    public func suffixStart(words n: Int) -> Int? {
         guard n > 0 else { return nil }
         var i = entries.count
         var start = i
@@ -60,7 +68,7 @@ struct WordBuffer {
     }
 
     /// Feeds one key-down event into the buffer.
-    mutating func keyDown(keyCode: UInt16, shift: Bool, option: Bool, command: Bool, control: Bool) {
+    public mutating func keyDown(keyCode: UInt16, shift: Bool, option: Bool, command: Bool, control: Bool) {
         // Shortcuts are not typing: anything with Cmd/Ctrl invalidates the word.
         if command || control {
             reset()

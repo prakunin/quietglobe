@@ -1,13 +1,12 @@
 #!/usr/bin/env bash
+# Runs the unit tests (Swift Testing) of QuietGlobeCore.
+# Env: QG_SCRATCH (SwiftPM scratch dir; default outside the repo: SMB shares are slow).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-OUT="$(mktemp -d)"
-trap 'rm -rf "$OUT"' EXIT
+# TMPDIR ends with "/" on macOS; a "//" in the path breaks the Swift Testing macro plugin lookup.
+TMP_BASE="${TMPDIR:-/tmp}"
+SCRATCH="${QG_SCRATCH:-${TMP_BASE%/}/quietglobe-spm}"
 
-# With several files, top-level code is only allowed in a file named main.swift.
-cp "$ROOT/Tests/WordBufferTests.swift" "$OUT/main.swift"
-swiftc -o "$OUT/wordbuffer-tests" \
-  "$ROOT/Sources/WordBuffer.swift" \
-  "$OUT/main.swift"
-"$OUT/wordbuffer-tests"
+cd "$ROOT"
+swift test --scratch-path "$SCRATCH"

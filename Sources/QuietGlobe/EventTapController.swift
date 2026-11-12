@@ -2,6 +2,7 @@ import AppKit
 import Carbon
 import CoreGraphics
 import Foundation
+import QuietGlobeCore
 
 /// Owns the global event tap that intercepts the Globe key.
 ///
@@ -11,35 +12,21 @@ import Foundation
 ///
 /// Globe is a tap-or-modifier key: a clean press-and-release switches the
 /// layout (on key-up); pressing another key while Globe is held does not.
-/// "Held" is tracked via the Fn modifier flag (`fnHeld`).
-/// Fn+Esc retypes the last typed word in the other layout (`Retyper`); the tap
-/// feeds a `WordBuffer` with the keystrokes for that. All events except Globe
-/// and the Fn+Esc pair are passed through unchanged.
+/// Fn+Esc retypes the last typed word in the other layout (`Retyper`). All events
+/// except Globe and the Fn+Esc pair are passed through unchanged.
+///
+/// This class is a thin adapter: it converts CGEvents to plain values, feeds them
+/// to `KeyStateMachine` (which holds all the state and logic, and is unit-tested),
+/// and performs the resulting action.
 final class EventTapController {
-    /// Virtual key code for the Globe/Fn key on modern Apple keyboards.
-    static let globeKeyCode: Int64 = 179
-    private static let escapeKeyCode = Int64(WordBuffer.Code.escape)
-
     private let switcher: InputSourceSwitcher
     private let retyper: Retyper
     /// Asked on every Fn+Esc, so the menu toggle takes effect immediately.
     private let isRetypeEnabled: () -> Bool
-    private var buffer = WordBuffer()
-    private var lastKeyboardType: Int64 = 0
+    private var machine = KeyStateMachine()
     private var appObserver: NSObjectProtocol?
     private var eventTap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
-
-    /// Another key was pressed while Fn/Globe was held, so releasing Globe must not switch the layout.
-    private var globeUsedAsModifier = false
-    /// Fn is held according to the modifier flags. On built-in keyboards (macOS 27)
-    /// holding Fn produces only flagsChanged (keycode 63) and no keycode-179 key-down
-    /// until release, so the flag is the reliable "Fn is held" signal.
-    private var fnHeld = false
-    /// Words already converted in the current Fn-held series (0 = no series).
-    private var seriesWords = 0
-    /// The Esc key-down of Fn+Esc was consumed, so its key-up must be too.
-    private var swallowEscapeUp = false
 
     init(switcher: InputSourceSwitcher, isRetypeEnabled: @escaping () -> Bool = { true }) {
         self.switcher = switcher
@@ -85,7 +72,7 @@ final class EventTapController {
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            self?.buffer.reset()
+            self?.machine.appActivated()
         }
         log("event tap started")
         return true
@@ -106,11 +93,7 @@ final class EventTapController {
         appObserver = nil
         eventTap = nil
         runLoopSource = nil
-        buffer.reset()
-        globeUsedAsModifier = false
-        fnHeld = false
-        seriesWords = 0
-        swallowEscapeUp = false
+        machine.reset()
         log("event tap stopped")
     }
 
@@ -131,94 +114,41 @@ final class EventTapController {
             return Unmanaged.passUnretained(event)
         }
 
+        let output: KeyStateMachine.Output
         switch type {
         case .leftMouseDown, .rightMouseDown, .otherMouseDown:
-            buffer.reset()
-            return Unmanaged.passUnretained(event)
+            output = machine.mouseDown()
         case .flagsChanged:
-            let fnNow = event.flags.contains(.maskSecondaryFn)
-            if fnNow && !fnHeld {
-                fnHeld = true
-                seriesWords = 0
-                globeUsedAsModifier = false  // a new Fn press starts clean
-            } else if !fnNow {
-                if fnHeld { seriesWords = 0 }
-                fnHeld = false
-            }
-            return Unmanaged.passUnretained(event)
-        case .keyDown, .keyUp:
-            break
+            output = machine.flagsChanged(fn: event.flags.contains(.maskSecondaryFn))
+        case .keyDown:
+            let flags = event.flags
+            output = machine.keyDown(
+                keyCode: event.getIntegerValueField(.keyboardEventKeycode),
+                shift: flags.contains(.maskShift),
+                option: flags.contains(.maskAlternate),
+                command: flags.contains(.maskCommand),
+                control: flags.contains(.maskControl),
+                isAutorepeat: event.getIntegerValueField(.keyboardEventAutorepeat) != 0,
+                keyboardType: event.getIntegerValueField(.keyboardEventKeyboardType),
+                retypeEnabled: isRetypeEnabled,
+                secureInputEnabled: { IsSecureEventInputEnabled() }
+            )
+        case .keyUp:
+            output = machine.keyUp(keyCode: event.getIntegerValueField(.keyboardEventKeycode))
         default:
             return Unmanaged.passUnretained(event)
         }
 
-        let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
-        if keyCode == Self.globeKeyCode {
-            handleGlobe(type: type)
-            // Consume the Globe key so TextInputSwitcher never shows the HUD.
-            return nil
-        }
-
-        if type == .keyUp {
-            if keyCode == Self.escapeKeyCode && swallowEscapeUp {
-                swallowEscapeUp = false
-                return nil
-            }
-            return Unmanaged.passUnretained(event)
-        }
-
-        if fnHeld {
-            // Globe is acting as a modifier, not as a layout switch.
-            globeUsedAsModifier = true
-            if keyCode == Self.escapeKeyCode && isRetypeEnabled() {
-                // Fn+Esc: the buffer must survive, it is what gets retyped.
-                swallowEscapeUp = true
-                let isRepeat = event.getIntegerValueField(.keyboardEventAutorepeat) != 0
-                if !isRepeat { startRetype() }
-                return nil
-            }
-            buffer.reset()
-            return Unmanaged.passUnretained(event)
-        }
-
-        record(keyCode: keyCode, event: event)
-        return Unmanaged.passUnretained(event)
-    }
-
-    /// Globe key-down/up. Key-down is just consumed; the layout switches on key-up,
-    /// and only if no other key was used while it was held.
-    private func handleGlobe(type: CGEventType) {
-        guard type == .keyUp else { return }
-        if !globeUsedAsModifier {
+        switch output.action {
+        case .switchLayout:
             switcher.switchToAlternativeLayout()
+        case let .retype(keys, deleteCount, switchLayout, keyboardType):
+            retyper.retype(keys: keys, deleteCount: deleteCount, switchLayout: switchLayout, keyboardType: keyboardType)
+        case nil:
+            break
         }
-        globeUsedAsModifier = false
-    }
-
-    /// Feeds a normal key-down into the word buffer. Under secure input macOS does
-    /// not deliver keystrokes to event taps at all, so nothing is recorded there.
-    private func record(keyCode: Int64, event: CGEvent) {
-        let keyboardType = event.getIntegerValueField(.keyboardEventKeyboardType)
-        if keyboardType > 0 { lastKeyboardType = keyboardType }
-
-        let flags = event.flags
-        buffer.keyDown(
-            keyCode: UInt16(truncatingIfNeeded: keyCode),
-            shift: flags.contains(.maskShift),
-            option: flags.contains(.maskAlternate),
-            command: flags.contains(.maskCommand),
-            control: flags.contains(.maskControl)
-        )
-    }
-
-    /// Converts the last `seriesWords + 1` words; the layout switches on the first one only.
-    private func startRetype() {
-        guard !IsSecureEventInputEnabled() else { return }
-        let n = seriesWords + 1
-        guard let start = buffer.suffixStart(words: n) else { return }
-        let keys = Array(buffer.entries[start...])
-        seriesWords = n
-        retyper.retype(keys: keys, deleteCount: keys.count, switchLayout: n == 1, keyboardType: lastKeyboardType)
+        // A consumed Globe key never reaches TextInputSwitcher, so it shows no HUD.
+        return output.consume ? nil : Unmanaged.passUnretained(event)
     }
 }
 

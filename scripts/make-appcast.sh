@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Writes appcast.xml (one item) for a signed release zip.
 # Usage: make-appcast.sh VERSION BUILD ZIP NOTES_MD
-# Env: SPARKLE_ED_PRIVATE_KEY (Sparkle ed25519 private key), OUT (default ./appcast.xml)
+# Env: SPARKLE_ED_PRIVATE_KEY (Sparkle ed25519 private key), OUT (default ./appcast.xml),
+#      QG_SCRATCH (SwiftPM scratch dir, where sign_update lives; default outside the repo)
 set -euo pipefail
 
 VERSION="${1:?usage: make-appcast.sh VERSION BUILD ZIP NOTES_MD}"
@@ -12,8 +13,12 @@ NOTES="${4:?}"
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 OUT="${OUT:-appcast.xml}"
-SIGN="$ROOT/vendor/bin/sign_update"
-[ -x "$SIGN" ] || bash "$ROOT/scripts/fetch-sparkle.sh"
+TMP_BASE="${TMPDIR:-/tmp}"
+SCRATCH="${QG_SCRATCH:-${TMP_BASE%/}/quietglobe-spm}"
+# sign_update ships in the Sparkle SwiftPM artifact bundle (pinned in Package.swift).
+SIGN="$SCRATCH/artifacts/sparkle/Sparkle/bin/sign_update"
+[ -x "$SIGN" ] || (cd "$ROOT" && swift package --scratch-path "$SCRATCH" resolve >&2)
+[ -x "$SIGN" ] || { echo "sign_update not found at $SIGN" >&2; exit 1; }
 
 # The key goes through stdin only, never to disk or argv.
 SIG="$(printf '%s' "$SPARKLE_ED_PRIVATE_KEY" | "$SIGN" --ed-key-file - -p "$ZIP" | tr -d '[:space:]')"
