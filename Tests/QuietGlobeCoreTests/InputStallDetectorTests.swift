@@ -68,6 +68,42 @@ private func step(_ d: inout InputStallDetector, now: Double, hardwareIdle: Doub
         #expect(step(&d, now: 1.0, hardwareIdle: 0.05, sessionIdle: 2.5))
     }
 
+    /// Wake-up key at the lock screen: the gap is open but the check is paused.
+    @Test func pausedDetectorReportsNothingUntilThePauseEnds() {
+        var d = InputStallDetector()
+        d.pause(until: 10)
+        for t in stride(from: 0.0, to: 10.0, by: 0.25) {
+            #expect(!step(&d, now: t, hardwareIdle: 0.05, sessionIdle: 2000 + t))
+        }
+        #expect(!step(&d, now: 10.0, hardwareIdle: 0.05, sessionIdle: 2010))
+        #expect(step(&d, now: 10.5, hardwareIdle: 0.05, sessionIdle: 2010.5))
+    }
+
+    /// A shorter pause never cuts a longer one.
+    @Test func pauseOnlyExtends() {
+        var d = InputStallDetector()
+        d.pause(until: 10)
+        d.pause(until: 5)
+        #expect(!step(&d, now: 6, hardwareIdle: 0.05, sessionIdle: 3))
+        #expect(!step(&d, now: 7, hardwareIdle: 0.05, sessionIdle: 3))
+    }
+
+    /// A pause in the middle of a stall restarts the confirmation.
+    @Test func pauseClearsAPendingStall() {
+        var d = InputStallDetector()
+        #expect(!step(&d, now: 0, hardwareIdle: 0.05, sessionIdle: 2))
+        d.pause(until: 0.3)
+        #expect(!step(&d, now: 0.5, hardwareIdle: 0.05, sessionIdle: 2.5))
+        #expect(step(&d, now: 1.0, hardwareIdle: 0.05, sessionIdle: 3))
+    }
+
+    @Test func gapIsOpenMatchesTheStallSignal() {
+        let d = InputStallDetector()
+        #expect(d.gapIsOpen(hardwareIdle: 0.1, sessionIdle: 2))
+        #expect(!d.gapIsOpen(hardwareIdle: 0.1, sessionIdle: 1))
+        #expect(!d.gapIsOpen(hardwareIdle: -1, sessionIdle: 100))
+    }
+
     @Test func unknownHardwareIdleIsIgnored() {
         var d = InputStallDetector()
         #expect(!step(&d, now: 0, hardwareIdle: -1, sessionIdle: 10))

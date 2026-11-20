@@ -33,6 +33,14 @@ final class EventTapController {
     /// Watches the tap's health while it is installed (see `checkHealth`).
     private var healthTimer: Timer?
     private var stallDetector = InputStallDetector()
+    /// Sleep, display sleep, screen lock, fast user switching: input does not
+    /// reach the session then, and that is not a dead tap.
+    private var systemAsleep = false
+    private var screensAsleep = false
+    private var sessionInactive = false
+    private var systemObservers: [NSObjectProtocol] = []
+    /// Seconds after wake or unlock before the stall check runs again.
+    private static let wakeGrace: Double = 10
 
     enum Failure {
         /// `AXIsProcessTrusted()` says the permission is gone.
@@ -44,6 +52,9 @@ final class EventTapController {
 
     /// Called on the main thread after the tap was torn down because it stopped working.
     var onTapFailed: ((Failure) -> Void)?
+    /// Called on the main thread when the Mac wakes, the screen is unlocked
+    /// or the user session becomes active again.
+    var onSystemResumed: (() -> Void)?
 
     init(switcher: InputSourceSwitcher, isRetypeEnabled: @escaping () -> Bool = { true },
          isGlobeEnabled: @escaping () -> Bool = { true }) {
@@ -51,6 +62,46 @@ final class EventTapController {
         self.retyper = Retyper(switcher: switcher)
         self.isRetypeEnabled = isRetypeEnabled
         self.isGlobeEnabled = isGlobeEnabled
+        observeSystemState()
+    }
+
+    /// Tracks sleep, display sleep, lock and session switches, so a key that
+    /// never reached the session in those states is not taken for a dead tap.
+    private func observeSystemState() {
+        let workspace = NSWorkspace.shared.notificationCenter
+        let distributed = DistributedNotificationCenter.default()
+        let events: [(NotificationCenter, Notification.Name, (EventTapController) -> Void, Bool)] = [
+            (workspace, NSWorkspace.willSleepNotification, { $0.systemAsleep = true }, false),
+            (workspace, NSWorkspace.didWakeNotification, { $0.systemAsleep = false }, true),
+            (workspace, NSWorkspace.screensDidSleepNotification, { $0.screensAsleep = true }, false),
+            (workspace, NSWorkspace.screensDidWakeNotification, { $0.screensAsleep = false }, true),
+            (workspace, NSWorkspace.sessionDidResignActiveNotification, { $0.sessionInactive = true }, false),
+            (workspace, NSWorkspace.sessionDidBecomeActiveNotification, { $0.sessionInactive = false }, true),
+            (distributed, Notification.Name("com.apple.screenIsLocked"), { _ in }, false),
+            (distributed, Notification.Name("com.apple.screenIsUnlocked"), { _ in }, true),
+        ]
+        for (center, name, apply, resumed) in events {
+            systemObservers.append(center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                guard let self else { return }
+                apply(self)
+                log("system: \(name.rawValue)")
+                self.stallDetector.pause(until: ProcessInfo.processInfo.systemUptime + Self.wakeGrace)
+                if resumed { self.onSystemResumed?() }
+            })
+        }
+    }
+
+    /// Input legitimately does not reach the session right now.
+    private var inputIsAway: Bool {
+        systemAsleep || screensAsleep || sessionInactive || Self.screenIsLocked()
+    }
+
+    /// The lock screen (or another user's session) is in front.
+    private static func screenIsLocked() -> Bool {
+        guard let session = CGSessionCopyCurrentDictionary() as? [String: Any] else { return false }
+        if (session["CGSSessionScreenIsLocked"] as? Bool) == true { return true }
+        if let onConsole = session[kCGSessionOnConsoleKey as String] as? Bool, !onConsole { return true }
+        return false
     }
 
     var isRunning: Bool {
@@ -143,7 +194,13 @@ final class EventTapController {
             .combinedSessionState,
             eventType: CGEventType(rawValue: ~0)!
         )
-        if stallDetector.update(now: now, hardwareIdle: Self.hardwareIdleSeconds(), sessionIdle: sessionIdle) {
+        let hardwareIdle = Self.hardwareIdleSeconds()
+        // Asked only when the gap is open: the lock check is an IPC call.
+        if stallDetector.gapIsOpen(hardwareIdle: hardwareIdle, sessionIdle: sessionIdle), inputIsAway {
+            stallDetector.pause(until: now + Self.wakeGrace)
+            return
+        }
+        if stallDetector.update(now: now, hardwareIdle: hardwareIdle, sessionIdle: sessionIdle) {
             fail(.inputStalled, "input stalled (session idle \(String(format: "%.1f", sessionIdle)) s)")
         }
     }

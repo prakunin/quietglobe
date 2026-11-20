@@ -71,7 +71,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUSta
     /// Set when the event tap failed (permission removed, input stalled).
     /// The tap comes back only after the permission was seen missing and
     /// granted again, or after a deliberate user action in the menu.
-    private var tapSuspended = false
+    private var suspendReason: EventTapController.Failure?
+    private var tapSuspended: Bool { suspendReason != nil }
+    /// Suspended after an input stall while the permission is still there:
+    /// the menu offers Resume, not a TCC reset.
+    private var stalledWithPermission: Bool { suspendReason == .inputStalled && AXIsProcessTrusted() }
     /// When the tap was last reinstalled after an input stall (systemUptime).
     private var lastStallRetry: TimeInterval?
     private static let requestAccessibilityArgument = "--request-accessibility"
@@ -83,6 +87,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUSta
 
         eventTap.onTapFailed = { [weak self] failure in
             self?.handleTapFailure(failure)
+        }
+        eventTap.onSystemResumed = { [weak self] in
+            self?.systemResumed()
         }
 
         setupStatusItem()
@@ -204,12 +211,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUSta
             )
             statusItem.button?.image?.isTemplate = true
             statusItem.button?.alphaValue = 1.0
-            statusItem.button?.toolTip = tapSuspended
-                ? "QuietGlobe — paused: Accessibility permission was removed"
-                : "QuietGlobe — Accessibility permission required"
+            if stalledWithPermission {
+                statusItem.button?.toolTip = "QuietGlobe — paused: keyboard input stopped reaching macOS. Menu → Resume QuietGlobe"
+            } else {
+                statusItem.button?.toolTip = tapSuspended
+                    ? "QuietGlobe — paused: Accessibility permission was removed"
+                    : "QuietGlobe — Accessibility permission required"
+            }
             globeItem.isEnabled = false
             retypeItem.isEnabled = false
-            accessItem.title = "Grant Accessibility…"
+            accessItem.title = stalledWithPermission ? "Resume QuietGlobe" : "Grant Accessibility…"
             accessItem.isEnabled = true
         } else {
             updateStatusIcon()
@@ -295,7 +306,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUSta
     /// the same as a dead tap); a second stall soon after means the permission
     /// is really gone, so stay off until the user acts.
     private func handleTapFailure(_ failure: EventTapController.Failure) {
-        tapSuspended = true
+        suspendReason = failure
         let now = ProcessInfo.processInfo.systemUptime
 
         if failure == .inputStalled, lastStallRetry.map({ now - $0 > 15 }) ?? true {
@@ -303,7 +314,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUSta
             DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
                 guard let self, self.tapSuspended, AXIsProcessTrusted() else { return }
                 log("retrying the event tap after an input stall")
-                self.tapSuspended = false
+                self.suspendReason = nil
                 self.syncEventTap()
                 self.updateUI()
             }
@@ -311,6 +322,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUSta
 
         updateUI()
         startPermissionPolling()
+    }
+
+    /// Woke up, unlocked, or back to this user: a tap paused by a stall
+    /// (usually the wake-up key itself) comes back on its own.
+    private func systemResumed() {
+        guard suspendReason == .inputStalled else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
+            guard let self, self.stalledWithPermission else { return }
+            log("resuming the event tap after wake/unlock")
+            self.resumeAfterStall()
+        }
+    }
+
+    /// Reinstalls the tap after an input stall; the permission is still there.
+    private func resumeAfterStall() {
+        suspendReason = nil
+        lastStallRetry = nil
+        syncEventTap()
+        updateUI()
     }
 
     private func updateLoginItem() {
@@ -400,6 +430,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUSta
         // After the entry was removed with "−", macOS does not add it again, and
         // it shows the prompt only once per process: reset our TCC record and
         // relaunch, the new process asks at launch.
+        if stalledWithPermission {
+            log("event tap resumed from the menu")
+            resumeAfterStall()
+            return
+        }
         if !AXIsProcessTrusted() || tapSuspended {
             resetAccessibilityRecord()
             relaunch()
@@ -489,7 +524,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUSta
             guard AXIsProcessTrusted() else {
                 // The permission is really gone now: the next grant is a fresh one.
                 if self.tapSuspended {
-                    self.tapSuspended = false
+                    self.suspendReason = nil
                     log("Accessibility permission is gone; waiting for a new grant")
                 }
                 return

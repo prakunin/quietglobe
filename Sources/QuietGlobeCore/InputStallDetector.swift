@@ -19,6 +19,8 @@ public struct InputStallDetector {
     public var confirm: Double
 
     private var stallStart: Double?
+    /// No stall is reported before this time (see `pause(until:)`).
+    private var pausedUntil = -Double.infinity
 
     public init(lag: Double = 1.5, confirm: Double = 0.5) {
         self.lag = lag
@@ -31,8 +33,11 @@ public struct InputStallDetector {
     ///   - sessionIdle: seconds since the last event the session received.
     /// - Returns: true when input is stuck and the tap must be removed.
     public mutating func update(now: Double, hardwareIdle: Double, sessionIdle: Double) -> Bool {
-        let stalled = hardwareIdle >= 0 && sessionIdle - hardwareIdle > lag
-        guard stalled else {
+        if now < pausedUntil {
+            stallStart = nil
+            return false
+        }
+        guard gapIsOpen(hardwareIdle: hardwareIdle, sessionIdle: sessionIdle) else {
             stallStart = nil
             return false
         }
@@ -41,6 +46,20 @@ public struct InputStallDetector {
     }
 
     public mutating func reset() {
+        stallStart = nil
+    }
+
+    /// Whether the hardware/session gap is open right now (a stall candidate).
+    public func gapIsOpen(hardwareIdle: Double, sessionIdle: Double) -> Bool {
+        hardwareIdle >= 0 && sessionIdle - hardwareIdle > lag
+    }
+
+    /// Reports no stall until `time`. Used while the screen is locked or the
+    /// Mac is asleep, and for a grace period after: the key that wakes the Mac
+    /// or is typed at the lock screen reaches the hardware but not the user
+    /// session, which looks exactly like a dead tap.
+    public mutating func pause(until time: Double) {
+        pausedUntil = max(pausedUntil, time)
         stallStart = nil
     }
 }

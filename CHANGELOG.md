@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.1] - 2026-11-20
+
+### Fixed
+
+- After sleep or a locked screen QuietGlobe could switch itself off (⚠️ in the menu bar), as if the Accessibility permission were gone. The key that wakes the Mac or is typed at the lock screen never reaches the user session, and the input-stall guard took that for a dead event tap. The guard now pauses while the Mac sleeps, the display is off, the screen is locked or another user is active, and for 10 seconds after.
+- If the guard does stop the event tap while the permission is still there, the menu offers "Resume QuietGlobe" instead of "Grant Accessibility…" (which resets the permission), and the tap comes back by itself after wake or unlock.
+
 ### Changed
 
 - README rewritten around the three features (silent Globe switching, Fn+Esc, layout indicator), with menu bar screenshots, a Troubleshooting section and an accurate Privacy section.
