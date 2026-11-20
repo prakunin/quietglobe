@@ -1,53 +1,36 @@
 # QuietGlobe
 
-**Disable the system-wide macOS input source indicator — the ABC/Russian popup — for any keyboard layout. Switch input sources instantly with the 🌐 Globe key: no popup, no HUD, no delay.**
+**A small keyboard-layout companion for macOS: switch layouts with the 🌐 Globe key without the popup, fix a word typed in the wrong layout with Fn+Esc, and see the current layout in the menu bar.**
 
-> **Fork of [Nishikinodzuki/quietglobe](https://github.com/Nishikinodzuki/quietglobe)** adding **Fn+Esc — retype the last word(s) in the other layout** (like Punto Switcher's “convert last word”). See [Fn+Esc](#fnesc-retype-in-the-other-layout). Signed prebuilt [releases](https://github.com/prakunin/quietglobe/releases) with in-app [updates](#updates).
-
-**English** · [Русский](README.ru.md) · [Install](#install) · [Updates](#updates) · [Feedback](#feedback) · [FAQ](#faq)
+**English** · [Русский](README.ru.md) · [Install](#install) · [Usage](#usage) · [Troubleshooting](#troubleshooting) · [FAQ](#faq)
 
 [![macOS 13+](https://img.shields.io/badge/macOS-13%2B-blue?style=flat-square)](https://www.apple.com/macos/)
-[![Swift](https://img.shields.io/badge/Swift-5.9-orange?style=flat-square)](https://swift.org)
+[![Universal 2](https://img.shields.io/badge/Apple%20Silicon%20%2B%20Intel-Universal%202-lightgrey?style=flat-square)](#supported-macos)
+[![Swift 6](https://img.shields.io/badge/Swift-6-orange?style=flat-square)](https://swift.org)
 [![MIT](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE)
+[![Release](https://img.shields.io/github/v/release/prakunin/quietglobe?style=flat-square)](https://github.com/prakunin/quietglobe/releases/latest)
 
-![QuietGlobe before and after: the macOS ABC/Russian input source popup on the left, instant switching without a popup on the right](docs/assets/quietglobe-before-after.png)
+## What it does
 
-## The problem
+### 🌐 Switch layouts without the popup
 
-On macOS, when you press the 🌐 Globe (Fn) key to switch between keyboard layouts — **ABC ↔ Russian**, **ABC ↔ German**, or any other enabled pair — the system can show a floating **input source indicator** with the layout names. It is system-wide: the popup appears for any enabled keyboard layout, not only ABC/Russian.
+Pressing 🌐 (Globe/Fn) on macOS shows a floating **input source indicator** (the “ABC / Russian” popup) that covers your text and stays until you type. It appears for every enabled layout — ABC ↔ Russian, ABC ↔ German, any pair. QuietGlobe switches the layout itself, instantly, and the popup never appears. Same key, no HUD, no delay.
 
-It is not just cosmetic:
+![The macOS ABC/Russian input source popup on the left, instant switching without a popup on the right](docs/assets/quietglobe-before-after.png)
 
-- it covers your text;
-- it stays on screen until you type or it times out;
-- it interrupts typing, presentations, screen recordings, and demos.
+### ⌨️ Fn+Esc: retype in the other layout
 
-If you searched for **“disable ABC/Russian popup macOS”**, **“macOS input source indicator”**, **“Globe key HUD”**, **“language switcher popup”**, or **“hide input source HUD”**, this is the popup you mean.
+Typed `ghbdtn` while the Latin layout was active? Press **Fn+Esc** and it becomes `привет`, and the layout switches. Keep holding Fn and press Esc again to convert one more word.
 
-![macOS input source indicator showing ABC and Russian](docs/assets/macos-input-source-indicator.png)
+### 🔤 Current layout in the menu bar
 
-## The fix
+The menu bar icon shows the active layout — `RU`, `A`, `PL`… — and updates on any switch, like the system input menu. Click it to pick a layout. You can hide the system indicator so only one icon stays.
 
-**QuietGlobe** intercepts the Globe key, switches the keyboard layout instantly with the public macOS Text Input Sources API, and suppresses the HUD. You keep the same key, but the switch is silent.
+<img src="docs/assets/menu-bar-badge.png" width="331" alt="QuietGlobe's RU layout badge in the macOS menu bar, next to the clock">
 
-- Works with **every enabled keyboard layout** — ABC, Russian, German, French, and more.
-- No popup. No delay.
-- Native Swift, no private APIs, no network, no telemetry.
-- Open source (MIT).
-
-![QuietGlobe demo: typing "Привет, мир!" with and without the input source popup](docs/assets/quietglobe-demo.gif)
+Free and open source. Native Swift, public macOS APIs only, no telemetry.
 
 ## Install
-
-### One-line installer (recommended)
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/prakunin/quietglobe/main/install.sh | bash
-```
-
-It downloads the latest prebuilt release, verifies its SHA-256 checksum, installs to `/Applications` (or `~/Applications` if needed), and opens QuietGlobe. No Xcode Command Line Tools needed, and no quarantine to remove because `curl` does not set it. The app is signed with a self-signed certificate (not notarized by Apple), so downloading the zip from the Releases page in a browser may trigger Gatekeeper; the installer avoids that. Pin a version with `VERSION=1.1.1`; build from source with `FROM_SOURCE=1` (needs Xcode Command Line Tools).
-
-After installation, open **QuietGlobe** from `/Applications` if it is not already open — it runs in the menu bar (no Dock icon).
 
 ### Homebrew
 
@@ -57,124 +40,128 @@ brew trust prakunin/tap   # Homebrew 7+: third-party taps must be trusted
 brew install --cask quietglobe
 ```
 
-The cask removes the download quarantine from `/Applications/QuietGlobe.app` (the app is not notarized). It is marked `auto_updates`: QuietGlobe updates itself, `brew upgrade --greedy` also works.
+### One-line installer
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/prakunin/quietglobe/main/install.sh | bash
+```
+
+Downloads the latest release, verifies its SHA-256 checksum, installs to `/Applications` (or `~/Applications`) and opens QuietGlobe. Options: `VERSION=1.3.0` pins a version, `FROM_SOURCE=1` builds from source (needs Xcode Command Line Tools).
 
 ### Manual
 
-Download `QuietGlobe.zip` from the [Releases](https://github.com/prakunin/quietglobe/releases) page, or [build from source](#build-from-source), then move `QuietGlobe.app` to `/Applications`. (The upstream [releases](https://github.com/Nishikinodzuki/quietglobe/releases) do **not** include Fn+Esc.)
+Download `QuietGlobe.zip` from [Releases](https://github.com/prakunin/quietglobe/releases/latest) and move `QuietGlobe.app` to `/Applications`.
+
+> QuietGlobe is signed with a self-signed certificate and is not notarized by Apple. A zip downloaded in a browser gets quarantined and Gatekeeper may refuse to open it; Homebrew and the installer avoid that. For a manual download, run `xattr -dr com.apple.quarantine /Applications/QuietGlobe.app` once.
 
 ## First launch
 
-1. Open **QuietGlobe**.
-2. macOS asks for **Accessibility** permission. QuietGlobe needs it to intercept the Globe key before the system HUD appears.
-3. Open **System Settings → Privacy & Security → Accessibility** and enable **QuietGlobe**.
-4. QuietGlobe detects the permission automatically and starts. No restart needed.
-
-> Accessibility permission cannot be granted automatically by macOS. This is a system security requirement, not an installer limitation.
-
-## Updates
-
-QuietGlobe checks for updates automatically once a day using [Sparkle](https://sparkle-project.org). You can also click the 🌐 menu → **Check for Updates…**. Updates are signed (EdDSA) and installed in place.
-
-Release builds are signed with a stable certificate, so the Accessibility permission is kept across updates. Coming from 1.0.x or a build from source (new bundle identifier and a different signature) you need to re-enable Accessibility once: remove the old QuietGlobe entry (−) and add it again. Source builds are ad-hoc signed and need this after every rebuild.
+1. Open **QuietGlobe**. It lives in the menu bar (no Dock icon) and places itself next to the clock.
+2. macOS asks for **Accessibility** permission: QuietGlobe needs it to see the 🌐 key before the system does. Enable **QuietGlobe** in **System Settings → Privacy & Security → Accessibility**.
+3. QuietGlobe notices the permission within a second and starts. No restart needed.
+4. Make sure 🌐 is set to **“Change Input Source”** in **System Settings → Keyboard** (it is by default).
 
 ## Usage
 
-- Press **🌐 (Globe/Fn)** to switch between your last used keyboard layouts.
-- The Globe key must be configured as **“Change Input Source”** in **System Settings → Keyboard**.
-- QuietGlobe lives in the menu bar and shows the current layout there (`RU`, `A`, `PL`…), like the system input menu. Click it to:
-  - pick a layout from the list of enabled ones (✓ marks the active one);
-  - **🌐 Switch layout without popup** — toggle Globe key interception; when off, macOS handles 🌐 natively (with its popup).
-  - **Fn+Esc: retype last word** — toggle the retype hotkey. The two toggles are independent (both on by default); the tap stops when both are off.
-  - **Check for Updates…** / **Check for Updates Automatically** — check now, or toggle the daily automatic check.
-  - **Show Current Layout in Menu Bar** — on by default; turn off to show the 🌐 globe instead.
-  - **Hide System Input Menu** — hide the system layout icon (the same switch as in System Settings), so only QuietGlobe's badge stays.
-  - **Launch at Login** — start QuietGlobe when you log in.
-  - **Accessibility Settings…** — open the exact permission pane.
-  - **Quit QuietGlobe**.
+### Globe key
 
-QuietGlobe's badge replaces the system input menu: hide the system one with **Hide System Input Menu**, or in **System Settings → Keyboard → Text Input → Input Sources → Edit… → turn off “Show Input menu in menu bar”**.
+- Press and release **🌐** to switch to the previous layout.
+- The switch happens on **release**, and only if no other key was pressed meanwhile, so 🌐 still works as a modifier (Fn+Esc, Fn+arrows…).
 
-The layout switches when you **release** 🌐, and only if no other key was pressed while it was held — so 🌐 still works as a modifier (Fn+Esc and friends).
+### Fn+Esc
 
-## Fn+Esc: retype in the other layout
+- **Fn+Esc** deletes the last word and retypes the same keys in the other layout; the layout switches too. Trailing spaces are kept.
+- **Series:** keep holding **Fn** and press **Esc** again to add the previous word (2 words, then 3…). Releasing Fn ends the series. Press Fn+Esc again afterwards to convert back.
+- QuietGlobe remembers **key codes, not characters**, so Shift and Option combinations (e.g. Polish ą, ę) come out right in the target layout.
+- The remembered line resets on Return, Tab, arrows, Home/End/PgUp/PgDn, Cmd/Ctrl shortcuts, mouse clicks and app switches. Nothing is recorded in password fields (secure input).
+- Fn+Esc beeps when there is nothing to convert.
+- Works anywhere you can type, Terminal included (it sends Backspace + key presses). Not supported yet: Caps Lock (retyped in lower case), dead keys and IMEs, lines longer than 256 keys.
 
-Typed `ghbdtn` while in the Latin layout? Press **Fn+Esc** → it becomes `привет` and the layout switches.
+### Menu
 
-- **Fn+Esc** — deletes the last word and retypes the same keys in the other layout. Trailing spaces are kept.
-- **Series:** keep holding **Fn** and press **Esc** again — the previous word is added (2 words, then 3, …). The layout switches only on the first Esc of the series. Releasing Fn ends the series.
-- If there is nothing to convert (empty buffer, no more words in the series, secure input), Fn+Esc beeps.
-- Press Fn+Esc again after releasing Fn to convert the last word back.
-- QuietGlobe remembers **key codes, not characters**, so Shift/Option combinations (e.g. Polish ą, ę) are reproduced in the target layout.
-- The remembered line resets on Return, Tab, arrows, Home/End/PgUp/PgDn, Cmd/Ctrl shortcuts, mouse clicks and app switches. Nothing is recorded while macOS secure input (password fields) is active.
-- Retyping works by synthetic Backspace + key presses, so it works in Terminal too. Not supported yet: Caps Lock (retyped in lower case), dead keys / IMEs, very long lines (history is capped at 256 keys).
+Click the layout icon:
+
+<img src="docs/assets/menu.png" width="293" alt="QuietGlobe menu: enabled layouts, Globe and Fn+Esc toggles, menu bar options, updates">
+
+| Item | What it does |
+|---|---|
+| *Your layouts* | Switch to a layout; ✓ marks the active one. |
+| **🌐 Switch layout without popup** | Globe interception. Off: macOS handles 🌐 itself, popup included. |
+| **Fn+Esc: retype last word** | The retype hotkey. Independent of the Globe toggle. |
+| **Show Current Layout in Menu Bar** | On by default. Off: a 🌐 globe icon instead. |
+| **Hide System Input Menu** | Hides the system layout indicator (same as *System Settings → Keyboard → Text Input → Edit… → Show Input menu in menu bar*). |
+| **Launch at Login** | Start QuietGlobe when you log in. |
+| **Accessibility Settings…** / **Grant Accessibility…** | Open the permission pane, or ask for the permission again (see [Troubleshooting](#troubleshooting)). |
+| **Check for Updates…** / **Check for Updates Automatically** | Update now, or turn the daily check on/off. |
+
+The icon is dimmed when both features are off, and shows ⚠️ when the Accessibility permission is missing. ⌘-drag it to move it; macOS remembers the place.
+
+## Updates
+
+QuietGlobe checks for updates once a day with [Sparkle](https://sparkle-project.org) (or use **Check for Updates…**). Updates are signed (EdDSA) and installed in place. Every release is signed with the same certificate, so the Accessibility permission survives updates. Homebrew users can also run `brew upgrade --greedy`.
+
+## Troubleshooting
+
+**The icon shows ⚠️.** QuietGlobe has no Accessibility permission. Click it → **Grant Accessibility…**. QuietGlobe resets its permission entry and relaunches, and macOS asks again. Then enable QuietGlobe in the list.
+
+**QuietGlobe is missing from the Accessibility list.** This happens after it was removed with “−”: macOS does not add it back on its own. **Grant Accessibility…** fixes it.
+
+**I removed the permission while QuietGlobe was running.** Input may pause for about two seconds: QuietGlobe notices that keys and clicks stop reaching the system, removes its keyboard hook and shows ⚠️. Grant the permission again to bring it back.
+
+**The popup still appears.** Check that **🌐 Switch layout without popup** is on and that 🌐 is set to “Change Input Source” in System Settings → Keyboard. Other shortcuts (Ctrl+Space, Caps Lock) still show the system popup — QuietGlobe handles the Globe key only.
+
+**I built it from source and the permission keeps resetting.** macOS ties the permission to the code signature, and ad-hoc builds get a new one on every build. Sign with a stable identity, see [CONTRIBUTING.md](CONTRIBUTING.md#development).
 
 ## Supported macOS
 
 | macOS | Status |
 |---|---|
-| macOS 13 Ventura | Supported |
-| macOS 14 Sonoma | Supported |
-| macOS 15 Sequoia | Supported |
-| macOS 26 / 27 | Supported (tested on 27.2) |
+| 13 Ventura, 14 Sonoma, 15 Sequoia | Supported |
+| 26, 27 | Supported (tested on 27.2) |
 
-- Apple Silicon and Intel (Universal 2).
-- The Globe key is available on Apple keyboards and most modern MacBook keyboards.
+Universal 2 build for Apple Silicon and Intel. The Globe key is on Apple keyboards and modern MacBooks.
 
 ## FAQ
 
 ### How do I disable the ABC/Russian popup on macOS?
 
-Install QuietGlobe, grant Accessibility permission, and keep the Globe key set to “Change Input Source”. QuietGlobe switches the layout itself and suppresses the macOS input source indicator. This works for every enabled keyboard layout, not only ABC/Russian. There is no supported macOS setting that removes this popup, which is why QuietGlobe exists.
+There is no macOS setting for it. Install QuietGlobe, grant Accessibility and keep 🌐 set to “Change Input Source”: QuietGlobe switches the layout itself, so the indicator never shows. Works for any enabled layout, not only ABC/Russian.
 
-### Why does macOS show the input source indicator?
+### Does it work with Caps Lock or Ctrl+Space?
 
-macOS shows the indicator when the input source changes via the Globe key or a keyboard shortcut. It is meant to confirm the new layout, but it often stays on screen until you type, which interrupts typing and screen recordings.
+Not yet: QuietGlobe handles the 🌐 Globe key. Other ways of switching keep working, with the system popup.
 
-### Does QuietGlobe work with Caps Lock or Ctrl+Space?
+### Why does it need Accessibility permission?
 
-The first release targets the 🌐 Globe key. Caps Lock and custom shortcuts are on the roadmap. You can still switch layouts with any method — QuietGlobe only removes the popup for the Globe key.
+To see the Globe key before the system shows its popup, and to retype words for Fn+Esc. macOS requires Accessibility for any app that intercepts or sends keyboard events.
 
-### Why does QuietGlobe need Accessibility permission?
+### Does it collect data?
 
-To intercept the Globe key before the system HUD appears, QuietGlobe uses a macOS event tap. macOS requires Accessibility permission for global keyboard event taps. QuietGlobe does not read, store, or send your keystrokes.
+No. No analytics, no telemetry, and nothing you type leaves your Mac or touches the disk. The only network request is the daily update check (see [Privacy](#privacy)).
 
-### Is QuietGlobe free?
+### How do I uninstall it?
 
-Yes. QuietGlobe is free and open source under the MIT license. There are no ads, subscriptions, or analytics.
-
-### Does QuietGlobe collect data?
-
-No. QuietGlobe has no network access, no telemetry, and no analytics. The source code is public.
-
-### How do I uninstall QuietGlobe?
-
-Quit QuietGlobe, remove it from `/Applications`, and disable/remove it in **System Settings → Privacy & Security → Accessibility**.
-
-### Does QuietGlobe work on macOS 13, 14, 15, 26, and 27?
-
-Yes, QuietGlobe targets macOS 13 Ventura and later. It is built as a Universal 2 binary for Apple Silicon and Intel Macs.
-
-## How it works
-
-1. QuietGlobe registers a global event tap for the Globe key.
-2. When you press 🌐, it consumes the key event before the system can show the HUD.
-3. It reads the enabled keyboard layouts with `TISCreateInputSourceList`.
-4. It switches to the next layout with `TISSelectInputSource`.
-5. The result is an instant layout switch with no input source indicator.
-
-QuietGlobe uses public macOS APIs: `CoreGraphics` event taps and the Carbon Text Input Sources API. No private frameworks, no kernel extensions, no keystroke logging.
+Quit QuietGlobe, then `brew uninstall --cask quietglobe` (Homebrew) or delete `/Applications/QuietGlobe.app`. Remove it from **System Settings → Privacy & Security → Accessibility**. If you used **Hide System Input Menu**, turn the system indicator back on in System Settings → Keyboard → Text Input first, or run `defaults write com.apple.TextInputMenu visible -bool true`.
 
 ## Privacy
 
-- The only network request is the update check (a daily fetch of the appcast from GitHub); nothing about you or your typing is sent.
-- No analytics or telemetry.
-- No keystroke content is stored or transmitted. For Fn+Esc the key codes of the current line are kept in memory only (never logged, never written to disk), and are dropped on Return, clicks, app switches and in password fields.
-- The source is open for review.
+- **Network:** only the daily update check — a download of `appcast.xml` from GitHub. Nothing about you or your typing is sent.
+- **Typing:** for Fn+Esc, the key codes of the current line are kept in memory only. They are never logged or written to disk, and are dropped on Return, clicks, app switches and in password fields.
+- **Logs:** QuietGlobe logs to the system log (`/usr/bin/log show --predicate 'subsystem == "io.github.prakunin.quietglobe"'`): layout ids and counts, never typed text.
+- No analytics or telemetry. The source is open for review.
+
+## How it works
+
+- A [`CGEventTap`](https://developer.apple.com/documentation/coregraphics/cgevent/tapcreate(tap:place:options:eventsofinterest:callback:userinfo:)) sees key events before the system. QuietGlobe consumes the Globe key, so the popup is never triggered, and switches the layout with the Text Input Sources API (`TISSelectInputSource`). Every other event passes through unchanged.
+- Fn+Esc replays the remembered key codes as synthetic Backspace + key events after switching the layout.
+- The menu bar badge follows `kTISNotifySelectedKeyboardInputSourceChanged`, so it is right whichever way the layout changed.
+- If keys and clicks stop reaching the system while the hook is installed (for example, the permission was removed while running), QuietGlobe removes the hook within about two seconds instead of leaving input frozen.
+
+Public APIs only: no private frameworks, no kernel extensions.
 
 ## Build from source
 
-Requirements: macOS 13+, Xcode Command Line Tools. The project is a Swift package; SwiftPM fetches the pinned Sparkle (`Package.swift`, `Package.resolved`) automatically. Build products go to a scratch directory outside the repo (`QG_SCRATCH`, default `$TMPDIR/quietglobe-spm`).
+Requirements: macOS 13+, Xcode Command Line Tools with Swift 6.
 
 ```bash
 git clone https://github.com/prakunin/quietglobe.git
@@ -184,16 +171,14 @@ cd quietglobe
 open QuietGlobe.app
 ```
 
-## Feedback
+SwiftPM fetches the pinned Sparkle automatically; build products go outside the repo (`QG_SCRATCH`, default `$TMPDIR/quietglobe-spm`). See [CONTRIBUTING.md](CONTRIBUTING.md) for signing and the project layout.
 
-- **Bugs and concrete feature requests:** [GitHub Issues](https://github.com/prakunin/quietglobe/issues)
-- **Ideas and questions:** also via [GitHub Issues](https://github.com/prakunin/quietglobe/issues).
-- **Security issues:** report privately via [SECURITY.md](SECURITY.md).
+## Feedback and contributing
 
-## Contributing
-
-Pull requests are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md). If QuietGlobe helped you, star the repo — it helps other people find it.
+- Bugs, ideas and questions: [GitHub Issues](https://github.com/prakunin/quietglobe/issues).
+- Security issues: privately, see [SECURITY.md](SECURITY.md).
+- Pull requests are welcome, see [CONTRIBUTING.md](CONTRIBUTING.md). If QuietGlobe helps you, a star helps others find it.
 
 ## License
 
-MIT © Nishikinodzuki, Vasili Prakunin. See [LICENSE](LICENSE).
+MIT © Vasili Prakunin. See [LICENSE](LICENSE).

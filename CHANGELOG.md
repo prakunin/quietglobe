@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- README rewritten around the three features (silent Globe switching, Fn+Esc, layout indicator), with menu bar screenshots, a Troubleshooting section and an accurate Privacy section.
+- QuietGlobe is no longer presented as a fork: the About window, README and installer no longer mention the original project (its copyright stays in LICENSE, as MIT requires).
+
 ## [1.3.0] - 2026-11-20
 
 ### Added

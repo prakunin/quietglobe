@@ -6,7 +6,7 @@ Thanks for taking the time to contribute.
 
 - Search existing issues, discussions, and pull requests.
 - For large changes, open an issue first so we can agree on the approach.
-- Keep the app focused: quiet, instant input source switching on macOS.
+- Keep the app focused: keyboard layouts on macOS — silent Globe switching, Fn+Esc retyping, the layout indicator.
 
 ## Where to ask
 
@@ -49,11 +49,12 @@ Sparkle is pinned in `Package.swift` (exact version) and `Package.resolved`, fet
 ## Project structure
 
 - `Package.swift` — SwiftPM manifest (library `QuietGlobeCore`, executable `QuietGlobe`, tests; Sparkle dependency).
-- `Sources/QuietGlobeCore/` — pure logic, no AppKit: `WordBuffer` and `KeyStateMachine` (Globe/Fn/Fn+Esc state machine).
+- `Sources/QuietGlobeCore/` — pure logic, no AppKit: `WordBuffer`, `KeyStateMachine` (Globe/Fn/Fn+Esc state machine), `LayoutLabel` (menu bar label for a layout), `InputStallDetector` (detects a dead event tap).
 - `Sources/QuietGlobe/main.swift` — app entry point (`NSApplication`, `.accessory`).
 - `Sources/QuietGlobe/AppDelegate.swift` — menu bar status item, menu, TCC permission, login item.
-- `Sources/QuietGlobe/EventTapController.swift` — global event tap; a thin adapter from CGEvent to `KeyStateMachine`.
-- `Sources/QuietGlobe/InputSourceSwitcher.swift` — Text Input Sources layout switching.
+- `Sources/QuietGlobe/EventTapController.swift` — global event tap; a thin adapter from CGEvent to `KeyStateMachine`; removes the tap when input stalls.
+- `Sources/QuietGlobe/InputSourceSwitcher.swift` — Text Input Sources: layout switching and the list of enabled layouts.
+- `Sources/QuietGlobe/LayoutBadge.swift` — draws the layout badge for the menu bar; `SystemInputMenu.swift` — shows/hides the system input menu.
 - `Sources/QuietGlobe/Retyper.swift`, `Log.swift` — retyping and the `os.Logger` wrapper.
 - `Tests/QuietGlobeCoreTests/` — unit tests (Swift Testing), run with `scripts/test.sh`.
 - `Resources/Info.plist` — bundle metadata (`LSUIElement`, macOS 13+).

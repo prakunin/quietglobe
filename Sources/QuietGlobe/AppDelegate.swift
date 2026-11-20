@@ -415,11 +415,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUSta
         alert.messageText = "QuietGlobe"
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
         alert.informativeText = """
-        Instant, HUD-free input source switching for macOS.
+        Keyboard layouts for macOS: Globe switching without the popup,
+        Fn+Esc retyping, the current layout in the menu bar.
         Version \(version)
 
         https://github.com/prakunin/quietglobe
-        Fork of github.com/Nishikinodzuki/quietglobe
         """
         alert.addButton(withTitle: "OK")
         alert.runModal()
