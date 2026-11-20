@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-11-20
+
+### Added
+
+- The menu bar icon shows the current layout (`RU`, `A`, `PL`…) like the system input menu and updates on any switch, so the system input menu can be hidden. "Show Current Layout in Menu Bar" toggle (on by default) brings back the 🌐 globe.
+- Enabled layouts are listed at the top of the menu; click one to switch.
+- On first launch the icon is placed next to the clock, where the system input menu usually is; ⌘-drag it elsewhere and macOS keeps your place.
+- "Hide System Input Menu" toggle hides the system layout icon (same setting as System Settings → Keyboard → Text Input).
+
+### Fixed
+
+- Removing QuietGlobe from the Accessibility list while it was running froze all keyboard and mouse input until the app was killed. QuietGlobe now notices that input is stuck (the hardware sees keys and mouse, the session gets nothing, even for a single click) and removes its event tap within about 2 seconds. It never re-enables a tap the system disabled without permission; after a stall it retries once after 3 seconds and stays off (⚠️ in the menu bar) if input stalls again.
+- "Grant Accessibility…" adds QuietGlobe back to the Accessibility list after it was removed with "−": it resets QuietGlobe's Accessibility record and relaunches the app, which shows the system prompt (macOS shows it only once per process).
+- Menu items that need Accessibility are really disabled while it is missing.
+
 ## [1.2.0] - 2026-11-12
 
 ### Added
