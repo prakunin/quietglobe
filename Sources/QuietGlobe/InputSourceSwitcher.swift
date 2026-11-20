@@ -48,6 +48,48 @@ final class InputSourceSwitcher {
         return inputSourceID(source)
     }
 
+    /// An enabled keyboard layout as shown in the menu.
+    struct Layout: Equatable {
+        let id: String
+        let name: String
+        let language: String?
+    }
+
+    /// Enabled keyboard layouts, in system order. Main thread only.
+    func enabledLayouts() -> [Layout] {
+        enabledKeyboardLayouts().compactMap(layout)
+    }
+
+    /// The active input source (a layout or an input method). Main thread only.
+    func currentLayout() -> Layout? {
+        guard let source = TISCopyCurrentKeyboardInputSource()?.takeRetainedValue() else { return nil }
+        return layout(source)
+    }
+
+    /// Selects an enabled layout by id (menu click). Main thread only.
+    @discardableResult
+    func selectLayout(id: String) -> Bool {
+        guard id != currentInputSourceID(),
+              let target = enabledKeyboardLayouts().first(where: { inputSourceID($0) == id }) else { return false }
+        return select(target)
+    }
+
+    private func layout(_ source: TISInputSource) -> Layout? {
+        guard let id = inputSourceID(source) else { return nil }
+        let name = stringProperty(source, kTISPropertyLocalizedName) ?? id
+        var language: String?
+        if let raw = TISGetInputSourceProperty(source, kTISPropertyInputSourceLanguages) {
+            let languages = Unmanaged<CFArray>.fromOpaque(raw).takeUnretainedValue() as? [String]
+            language = languages?.first
+        }
+        return Layout(id: id, name: name, language: language)
+    }
+
+    private func stringProperty(_ source: TISInputSource, _ key: CFString) -> String? {
+        guard let property = TISGetInputSourceProperty(source, key) else { return nil }
+        return Unmanaged<CFString>.fromOpaque(property).takeUnretainedValue() as String
+    }
+
     /// Picks the remembered layout, else the first enabled layout that is not the current one.
     private func alternativeLayout() -> TISInputSource? {
         let layouts = enabledKeyboardLayouts()

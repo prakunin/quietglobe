@@ -1,7 +1,9 @@
 import AppKit
+import ApplicationServices
 import Carbon
 import CoreGraphics
 import Foundation
+import IOKit
 import QuietGlobeCore
 
 /// Owns the global event tap that intercepts the Globe key.
@@ -28,6 +30,20 @@ final class EventTapController {
     private var appObserver: NSObjectProtocol?
     private var eventTap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
+    /// Watches the tap's health while it is installed (see `checkHealth`).
+    private var healthTimer: Timer?
+    private var stallDetector = InputStallDetector()
+
+    enum Failure {
+        /// `AXIsProcessTrusted()` says the permission is gone.
+        case permissionRevoked
+        /// Input stopped reaching the session (permission removed while the
+        /// trust check still says yes, or a false positive such as a wake-up key).
+        case inputStalled
+    }
+
+    /// Called on the main thread after the tap was torn down because it stopped working.
+    var onTapFailed: ((Failure) -> Void)?
 
     init(switcher: InputSourceSwitcher, isRetypeEnabled: @escaping () -> Bool = { true },
          isGlobeEnabled: @escaping () -> Bool = { true }) {
@@ -77,12 +93,23 @@ final class EventTapController {
         ) { [weak self] _ in
             self?.machine.appActivated()
         }
+
+        // An active tap whose process lost Accessibility trust freezes all
+        // keyboard and mouse input system-wide. Watch for it and tear the tap down.
+        stallDetector.reset()
+        let timer = Timer(timeInterval: 0.25, repeats: true) { [weak self] _ in
+            self?.checkHealth()
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        healthTimer = timer
         log("event tap started")
         return true
     }
 
     /// Removes and invalidates the event tap.
     func stop() {
+        healthTimer?.invalidate()
+        healthTimer = nil
         if let runLoopSource {
             CFRunLoopRemoveSource(CFRunLoopGetCurrent(), runLoopSource, .commonModes)
         }
@@ -100,10 +127,60 @@ final class EventTapController {
         log("event tap stopped")
     }
 
+    /// Tears the tap down when the permission is gone or input got stuck.
+    ///
+    /// Removing the app from the Accessibility list does not always make
+    /// `AXIsProcessTrusted()` return false, so the input itself is checked
+    /// too: the hardware sees keys and mouse, but the session gets nothing.
+    private func checkHealth() {
+        guard isRunning else { return }
+        if !AXIsProcessTrusted() {
+            fail(.permissionRevoked, "Accessibility permission revoked")
+            return
+        }
+        let now = ProcessInfo.processInfo.systemUptime
+        let sessionIdle = CGEventSource.secondsSinceLastEventType(
+            .combinedSessionState,
+            eventType: CGEventType(rawValue: ~0)!
+        )
+        if stallDetector.update(now: now, hardwareIdle: Self.hardwareIdleSeconds(), sessionIdle: sessionIdle) {
+            fail(.inputStalled, "input stalled (session idle \(String(format: "%.1f", sessionIdle)) s)")
+        }
+    }
+
+    private func fail(_ failure: Failure, _ reason: String) {
+        guard isRunning else { return }
+        log("event tap failed: \(reason); removing it")
+        stop()
+        onTapFailed?(failure)
+    }
+
+    /// Seconds since the last keyboard/mouse event at the HID level, or -1.
+    private static func hardwareIdleSeconds() -> Double {
+        var iterator: io_iterator_t = 0
+        guard IOServiceGetMatchingServices(kIOMainPortDefault, IOServiceMatching("IOHIDSystem"), &iterator) == KERN_SUCCESS else {
+            return -1
+        }
+        defer { IOObjectRelease(iterator) }
+        let entry = IOIteratorNext(iterator)
+        guard entry != 0 else { return -1 }
+        defer { IOObjectRelease(entry) }
+        guard let value = IORegistryEntryCreateCFProperty(entry, "HIDIdleTime" as CFString, kCFAllocatorDefault, 0)?
+            .takeRetainedValue() as? NSNumber else { return -1 }
+        return value.doubleValue / 1_000_000_000
+    }
+
     fileprivate func handle(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
         // macOS disables taps that take too long or when the user interrupts
         // them. Re-enable the tap and pass the event through.
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
+            // Never re-enable a tap without Accessibility trust: that is what
+            // freezes input system-wide. Drop it instead.
+            guard AXIsProcessTrusted() else {
+                log("event tap disabled and Accessibility revoked: removing the tap")
+                DispatchQueue.main.async { [weak self] in self?.fail(.permissionRevoked, "tap disabled without Accessibility permission") }
+                return Unmanaged.passUnretained(event)
+            }
             if let eventTap {
                 CGEvent.tapEnable(tap: eventTap, enable: true)
                 log("event tap re-enabled")

@@ -1,5 +1,7 @@
 import AppKit
 import ApplicationServices
+import Carbon
+import QuietGlobeCore
 import ServiceManagement
 import Sparkle
 
@@ -9,7 +11,7 @@ import Sparkle
 /// - owns the `NSStatusItem` and its menu;
 /// - owns the `EventTapController` lifecycle;
 /// - handles Accessibility permission and login-item state.
-final class AppDelegate: NSObject, NSApplicationDelegate, SPUStandardUserDriverDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUStandardUserDriverDelegate {
     private let switcher = InputSourceSwitcher()
     private lazy var eventTap = EventTapController(
         switcher: switcher,
@@ -41,6 +43,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SPUStandardUserDriverD
         set { UserDefaults.standard.set(newValue, forKey: "retypeEnabled") }
     }
 
+    /// Menu bar shows the current layout (like the system input menu) instead
+    /// of the globe; persisted; on by default.
+    static var showLayout: Bool {
+        get { UserDefaults.standard.object(forKey: "showLayout") as? Bool ?? true }
+        set { UserDefaults.standard.set(newValue, forKey: "showLayout") }
+    }
+
     /// Sparkle updater: checks daily (Info.plist) and on "Check for Updates…".
     private lazy var updaterController = SPUStandardUpdaterController(
         startingUpdater: true,
@@ -54,15 +63,38 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SPUStandardUserDriverD
     private var loginItem: NSMenuItem!
     private var accessItem: NSMenuItem!
     private var autoUpdateItem: NSMenuItem!
+    private var showLayoutItem: NSMenuItem!
+    private var hideSystemMenuItem: NSMenuItem!
+    /// Enabled layouts at the top of the menu, rebuilt each time the menu opens.
+    private var layoutItems: [NSMenuItem] = []
     private var permissionTimer: Timer?
+    /// Set when the event tap failed (permission removed, input stalled).
+    /// The tap comes back only after the permission was seen missing and
+    /// granted again, or after a deliberate user action in the menu.
+    private var tapSuspended = false
+    /// When the tap was last reinstalled after an input stall (systemUptime).
+    private var lastStallRetry: TimeInterval?
+    private static let requestAccessibilityArgument = "--request-accessibility"
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
         _ = updaterController // start Sparkle
         Self.migrateSettings()
 
+        eventTap.onTapFailed = { [weak self] failure in
+            self?.handleTapFailure(failure)
+        }
+
         setupStatusItem()
+        observeLayoutChanges()
         updateUI()
+
+        // Relaunched by "Grant Accessibility…": ask even if both features are off,
+        // otherwise the entry never comes back to the list.
+        if CommandLine.arguments.contains(Self.requestAccessibilityArgument), !AXIsProcessTrusted() {
+            requestAccessibility()
+            startPermissionPolling()
+        }
 
         guard anyFeatureEnabled else { return }
 
@@ -78,8 +110,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SPUStandardUserDriverD
 
     // MARK: - Status item
 
+    /// Name under which macOS remembers the status item's place in the menu bar.
+    private static let statusItemName = "QuietGlobe"
+
     private func setupStatusItem() {
+        // First launch: stand next to the clock, where the system input menu
+        // usually is (macOS appends new items on the far left). The value is the
+        // distance from the right screen edge; after the user ⌘-drags the icon,
+        // macOS stores the new place under the same key and we keep it.
+        let positionKey = "NSStatusItem Preferred Position \(Self.statusItemName)"
+        if UserDefaults.standard.object(forKey: positionKey) == nil {
+            // 300 lands next to Bluetooth / Control Center; a smaller value
+            // (200) made macOS hide the item behind the system ones.
+            UserDefaults.standard.set(300, forKey: positionKey)
+        }
+
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        statusItem.autosaveName = Self.statusItemName
 
         if let button = statusItem.button {
             button.image = NSImage(systemSymbolName: "globe", accessibilityDescription: "QuietGlobe")
@@ -88,6 +135,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SPUStandardUserDriverD
         }
 
         let menu = NSMenu()
+        menu.delegate = self
+        // Honour isEnabled set in updateUI (feature toggles are off without permission).
+        menu.autoenablesItems = false
 
         globeItem = NSMenuItem(title: "🌐 Switch layout without popup", action: #selector(toggleGlobe), keyEquivalent: "")
         globeItem.target = self
@@ -98,6 +148,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SPUStandardUserDriverD
         menu.addItem(retypeItem)
 
         menu.addItem(.separator())
+
+        showLayoutItem = NSMenuItem(title: "Show Current Layout in Menu Bar", action: #selector(toggleShowLayout), keyEquivalent: "")
+        showLayoutItem.target = self
+        menu.addItem(showLayoutItem)
+
+        hideSystemMenuItem = NSMenuItem(title: "Hide System Input Menu", action: #selector(toggleSystemInputMenu), keyEquivalent: "")
+        hideSystemMenuItem.target = self
+        menu.addItem(hideSystemMenuItem)
 
         loginItem = NSMenuItem(title: "Launch at Login", action: #selector(toggleLogin), keyEquivalent: "")
         loginItem.target = self
@@ -137,7 +195,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SPUStandardUserDriverD
     }
 
     private func updateUI() {
-        let trusted = AXIsProcessTrusted()
+        let trusted = AXIsProcessTrusted() && !tapSuspended
 
         if !trusted {
             statusItem.button?.image = NSImage(
@@ -146,19 +204,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SPUStandardUserDriverD
             )
             statusItem.button?.image?.isTemplate = true
             statusItem.button?.alphaValue = 1.0
-            statusItem.button?.toolTip = "QuietGlobe — Accessibility permission required"
+            statusItem.button?.toolTip = tapSuspended
+                ? "QuietGlobe — paused: Accessibility permission was removed"
+                : "QuietGlobe — Accessibility permission required"
             globeItem.isEnabled = false
             retypeItem.isEnabled = false
             accessItem.title = "Grant Accessibility…"
             accessItem.isEnabled = true
         } else {
-            statusItem.button?.image = NSImage(
-                systemSymbolName: "globe",
-                accessibilityDescription: "QuietGlobe"
-            )
-            statusItem.button?.image?.isTemplate = true
-            statusItem.button?.alphaValue = anyFeatureEnabled ? 1.0 : 0.45
-            statusItem.button?.toolTip = anyFeatureEnabled ? "QuietGlobe — On" : "QuietGlobe — Off"
+            updateStatusIcon()
             globeItem.isEnabled = true
             retypeItem.isEnabled = true
             accessItem.title = "Accessibility Settings…"
@@ -167,8 +221,96 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SPUStandardUserDriverD
 
         globeItem.state = Self.globeEnabled ? .on : .off
         retypeItem.state = Self.retypeEnabled ? .on : .off
+        showLayoutItem.state = Self.showLayout ? .on : .off
+        hideSystemMenuItem.state = SystemInputMenu.isVisible ? .off : .on
         autoUpdateItem.state = updaterController.updater.automaticallyChecksForUpdates ? .on : .off
         updateLoginItem()
+    }
+
+    /// Redraws the icon unless the warning must stay (no permission, tap suspended).
+    private func refreshStatusIcon() {
+        if AXIsProcessTrusted(), !tapSuspended {
+            updateStatusIcon()
+        } else {
+            updateUI()
+        }
+    }
+
+    /// Globe or current-layout badge; dimmed while both features are off.
+    private func updateStatusIcon() {
+        guard let button = statusItem.button else { return }
+        let state = anyFeatureEnabled ? "On" : "Off"
+
+        if Self.showLayout, let layout = switcher.currentLayout() {
+            button.image = LayoutBadge.image(label: LayoutLabel.short(id: layout.id, language: layout.language))
+            button.image?.accessibilityDescription = layout.name
+            button.toolTip = "\(layout.name) — QuietGlobe \(state)"
+        } else {
+            button.image = NSImage(systemSymbolName: "globe", accessibilityDescription: "QuietGlobe")
+            button.image?.isTemplate = true
+            button.toolTip = "QuietGlobe — \(state)"
+        }
+        button.alphaValue = anyFeatureEnabled ? 1.0 : 0.45
+    }
+
+    /// Any layout switch (Globe, menu, shortcut, another app) refreshes the badge.
+    private func observeLayoutChanges() {
+        DistributedNotificationCenter.default().addObserver(
+            forName: NSNotification.Name(kTISNotifySelectedKeyboardInputSourceChanged as String),
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.refreshStatusIcon()
+        }
+    }
+
+    // MARK: - NSMenuDelegate
+
+    /// Rebuilds the layout list at the top of the menu with a check on the active one.
+    func menuNeedsUpdate(_ menu: NSMenu) {
+        hideSystemMenuItem.state = SystemInputMenu.isVisible ? .off : .on
+
+        layoutItems.forEach(menu.removeItem)
+        layoutItems = []
+
+        let layouts = switcher.enabledLayouts()
+        guard layouts.count > 1 else { return }
+
+        let currentID = switcher.currentInputSourceID()
+        for (index, layout) in layouts.enumerated() {
+            let item = NSMenuItem(title: layout.name, action: #selector(selectLayout(_:)), keyEquivalent: "")
+            item.target = self
+            item.representedObject = layout.id
+            item.state = layout.id == currentID ? .on : .off
+            menu.insertItem(item, at: index)
+            layoutItems.append(item)
+        }
+        let separator = NSMenuItem.separator()
+        menu.insertItem(separator, at: layouts.count)
+        layoutItems.append(separator)
+    }
+
+    /// Permission gone: wait for a real grant. Input stalled: one automatic
+    /// retry after a pause (a wake-up key that never reached the session looks
+    /// the same as a dead tap); a second stall soon after means the permission
+    /// is really gone, so stay off until the user acts.
+    private func handleTapFailure(_ failure: EventTapController.Failure) {
+        tapSuspended = true
+        let now = ProcessInfo.processInfo.systemUptime
+
+        if failure == .inputStalled, lastStallRetry.map({ now - $0 > 15 }) ?? true {
+            lastStallRetry = now
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
+                guard let self, self.tapSuspended, AXIsProcessTrusted() else { return }
+                log("retrying the event tap after an input stall")
+                self.tapSuspended = false
+                self.syncEventTap()
+                self.updateUI()
+            }
+        }
+
+        updateUI()
+        startPermissionPolling()
     }
 
     private func updateLoginItem() {
@@ -184,6 +326,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SPUStandardUserDriverD
         autoUpdateItem.state = updater.automaticallyChecksForUpdates ? .on : .off
     }
 
+    @objc private func selectLayout(_ sender: NSMenuItem) {
+        guard let id = sender.representedObject as? String else { return }
+        switcher.selectLayout(id: id)
+        refreshStatusIcon()
+    }
+
+    @objc private func toggleSystemInputMenu() {
+        SystemInputMenu.isVisible.toggle()
+        hideSystemMenuItem.state = SystemInputMenu.isVisible ? .off : .on
+    }
+
+    @objc private func toggleShowLayout() {
+        Self.showLayout.toggle()
+        updateUI()
+    }
+
     @objc private func toggleGlobe() {
         toggleFeature { Self.globeEnabled.toggle() }
     }
@@ -194,11 +352,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SPUStandardUserDriverD
 
     /// Flips one feature, then starts or stops the event tap to match.
     private func toggleFeature(_ flip: () -> Void) {
-        guard AXIsProcessTrusted() else {
-            requestAccessibility()
-            startPermissionPolling()
+        guard AXIsProcessTrusted(), !tapSuspended else {
+            openAccessibilitySettings()
             return
         }
+        lastStallRetry = nil
 
         flip()
         syncEventTap()
@@ -238,6 +396,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SPUStandardUserDriverD
     }
 
     @objc private func openAccessibilitySettings() {
+        // The system prompt is what (re)adds QuietGlobe to the Accessibility list.
+        // After the entry was removed with "−", macOS does not add it again, and
+        // it shows the prompt only once per process: reset our TCC record and
+        // relaunch, the new process asks at launch.
+        if !AXIsProcessTrusted() || tapSuspended {
+            resetAccessibilityRecord()
+            relaunch()
+            return
+        }
         if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
             NSWorkspace.shared.open(url)
         }
@@ -275,6 +442,42 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SPUStandardUserDriverD
         _ = AXIsProcessTrustedWithOptions(options)
     }
 
+    /// Starts a new copy of the app after this one quits.
+    private func relaunch() {
+        let path = Bundle.main.bundlePath
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/sh")
+        // Wait for this process to exit, so the new one is not a second instance.
+        process.arguments = ["-c", "while /bin/kill -0 \"$1\" 2>/dev/null; do sleep 0.2; done; /usr/bin/open \"$2\" --args \"$3\"",
+                             "relaunch", String(ProcessInfo.processInfo.processIdentifier), path,
+                             Self.requestAccessibilityArgument]
+        do {
+            try process.run()
+            log("relaunching to ask for Accessibility again")
+            NSApp.terminate(nil)
+        } catch {
+            log("relaunch failed: \(error.localizedDescription)")
+            requestAccessibility()
+            startPermissionPolling()
+        }
+    }
+
+    /// `tccutil reset Accessibility <our bundle id>`: forgets our entry, so the
+    /// next prompt adds QuietGlobe to the list again.
+    private func resetAccessibilityRecord() {
+        guard let bundleID = Bundle.main.bundleIdentifier else { return }
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/tccutil")
+        process.arguments = ["reset", "Accessibility", bundleID]
+        do {
+            try process.run()
+            process.waitUntilExit()
+            log("tccutil reset Accessibility: exit \(process.terminationStatus)")
+        } catch {
+            log("tccutil reset failed: \(error.localizedDescription)")
+        }
+    }
+
     private func startPermissionPolling() {
         permissionTimer?.invalidate()
         permissionTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] timer in
@@ -283,7 +486,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SPUStandardUserDriverD
                 return
             }
 
-            guard AXIsProcessTrusted() else { return }
+            guard AXIsProcessTrusted() else {
+                // The permission is really gone now: the next grant is a fresh one.
+                if self.tapSuspended {
+                    self.tapSuspended = false
+                    log("Accessibility permission is gone; waiting for a new grant")
+                }
+                return
+            }
+            guard !self.tapSuspended else { return }
 
             timer.invalidate()
             self.permissionTimer = nil

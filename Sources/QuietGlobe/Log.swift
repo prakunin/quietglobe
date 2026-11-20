@@ -4,5 +4,5 @@ import os
 let logger = Logger(subsystem: "io.github.prakunin.quietglobe", category: "app")
 
 func log(_ message: String) {
-    logger.info("\(message, privacy: .public)")
+    logger.notice("\(message, privacy: .public)")
 }
