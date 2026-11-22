@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.2] - 2026-11-22
+
+### Fixed
+
+- Removing QuietGlobe from the Accessibility list with "−" no longer freezes input, not even for a moment. Once a second QuietGlobe checks that it may still tap events: it creates a throw-away probe tap, which macOS refuses after "−" although `AXIsProcessTrusted()` still says yes. On a refusal it removes its event tap before input stalls. The input-stall guard stays as a backstop. When the tap cannot be created again, the menu offers "Grant Accessibility…".
+
+### Changed
+
+- Releases are built on Apple silicon GitHub runners again (the app stays universal).
+
 ## [1.3.1] - 2026-11-20
 
 ### Fixed

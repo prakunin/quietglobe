@@ -33,6 +33,10 @@ final class EventTapController {
     /// Watches the tap's health while it is installed (see `checkHealth`).
     private var healthTimer: Timer?
     private var stallDetector = InputStallDetector()
+    /// Health ticks since the last probe tap (see `probeTapAllowed`).
+    private var ticksSinceProbe = 0
+    /// Probe every this many health ticks (4 × 0.25 s = 1 s).
+    private static let probeEvery = 4
     /// Sleep, display sleep, screen lock, fast user switching: input does not
     /// reach the session then, and that is not a dead tap.
     private var systemAsleep = false
@@ -48,6 +52,9 @@ final class EventTapController {
         /// Input stopped reaching the session (permission removed while the
         /// trust check still says yes, or a false positive such as a wake-up key).
         case inputStalled
+        /// A probe tap could not be created: the window server no longer lets
+        /// this process tap events, although `AXIsProcessTrusted()` may still say yes.
+        case tapDenied
     }
 
     /// Called on the main thread after the tap was torn down because it stopped working.
@@ -148,6 +155,7 @@ final class EventTapController {
         // An active tap whose process lost Accessibility trust freezes all
         // keyboard and mouse input system-wide. Watch for it and tear the tap down.
         stallDetector.reset()
+        ticksSinceProbe = 0
         let timer = Timer(timeInterval: 0.25, repeats: true) { [weak self] _ in
             self?.checkHealth()
         }
@@ -189,6 +197,15 @@ final class EventTapController {
             fail(.permissionRevoked, "Accessibility permission revoked")
             return
         }
+        ticksSinceProbe += 1
+        if ticksSinceProbe >= Self.probeEvery {
+            ticksSinceProbe = 0
+            // Not at the lock screen or while asleep: there a refusal may mean nothing.
+            if !inputIsAway, !Self.probeTapAllowed() {
+                fail(.tapDenied, "a probe tap was refused")
+                return
+            }
+        }
         let now = ProcessInfo.processInfo.systemUptime
         let sessionIdle = CGEventSource.secondsSinceLastEventType(
             .combinedSessionState,
@@ -203,6 +220,30 @@ final class EventTapController {
         if stallDetector.update(now: now, hardwareIdle: hardwareIdle, sessionIdle: sessionIdle) {
             fail(.inputStalled, "input stalled (session idle \(String(format: "%.1f", sessionIdle)) s)")
         }
+    }
+
+    /// Creates a second, throw-away active tap and removes it at once.
+    ///
+    /// After QuietGlobe is removed from the Accessibility list with "−",
+    /// `AXIsProcessTrusted()` keeps saying yes, but the window server stops
+    /// granting new active taps. Catching that early removes our tap before
+    /// it can freeze input (the stall detector stays as the backstop).
+    /// The probe is never added to a run loop and is disabled before it is
+    /// invalidated, so it never holds up an event.
+    private static func probeTapAllowed() -> Bool {
+        guard let probe = CGEvent.tapCreate(
+            tap: .cgSessionEventTap,
+            place: .tailAppendEventTap,
+            options: .defaultTap,
+            eventsOfInterest: CGEventMask(1 << CGEventType.keyDown.rawValue),
+            callback: { _, _, event, _ in Unmanaged.passUnretained(event) },
+            userInfo: nil
+        ) else {
+            return false
+        }
+        CGEvent.tapEnable(tap: probe, enable: false)
+        CFMachPortInvalidate(probe)
+        return true
     }
 
     private func fail(_ failure: Failure, _ reason: String) {

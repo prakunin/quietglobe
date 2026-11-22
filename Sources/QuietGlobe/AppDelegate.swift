@@ -75,7 +75,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUSta
     private var tapSuspended: Bool { suspendReason != nil }
     /// Suspended after an input stall while the permission is still there:
     /// the menu offers Resume, not a TCC reset.
-    private var stalledWithPermission: Bool { suspendReason == .inputStalled && AXIsProcessTrusted() }
+    private var stalledWithPermission: Bool {
+        guard let suspendReason, suspendReason != .permissionRevoked else { return false }
+        return AXIsProcessTrusted()
+    }
     /// When the tap was last reinstalled after an input stall (systemUptime).
     private var lastStallRetry: TimeInterval?
     private static let requestAccessibilityArgument = "--request-accessibility"
@@ -309,14 +312,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUSta
         suspendReason = failure
         let now = ProcessInfo.processInfo.systemUptime
 
-        if failure == .inputStalled, lastStallRetry.map({ now - $0 > 15 }) ?? true {
+        if failure != .permissionRevoked, lastStallRetry.map({ now - $0 > 15 }) ?? true {
             lastStallRetry = now
             DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
                 guard let self, self.tapSuspended, AXIsProcessTrusted() else { return }
-                log("retrying the event tap after an input stall")
-                self.suspendReason = nil
-                self.syncEventTap()
-                self.updateUI()
+                log("retrying the event tap after \(failure)")
+                self.resumeAfterStall(keepRetryTime: true)
             }
         }
 
@@ -327,7 +328,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUSta
     /// Woke up, unlocked, or back to this user: a tap paused by a stall
     /// (usually the wake-up key itself) comes back on its own.
     private func systemResumed() {
-        guard suspendReason == .inputStalled else { return }
+        guard let suspendReason, suspendReason != .permissionRevoked else { return }
         DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
             guard let self, self.stalledWithPermission else { return }
             log("resuming the event tap after wake/unlock")
@@ -336,10 +337,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SPUSta
     }
 
     /// Reinstalls the tap after an input stall; the permission is still there.
-    private func resumeAfterStall() {
+    /// If the tap cannot be created any more, the permission is really gone
+    /// (removed with "−" while the trust check still says yes): from then on
+    /// the menu offers "Grant Accessibility…".
+    private func resumeAfterStall(keepRetryTime: Bool = false) {
         suspendReason = nil
-        lastStallRetry = nil
+        if !keepRetryTime { lastStallRetry = nil }
         syncEventTap()
+        if anyFeatureEnabled, !eventTap.isRunning {
+            log("event tap refused; treating Accessibility as removed")
+            suspendReason = .permissionRevoked
+            startPermissionPolling()
+        }
         updateUI()
     }
 
